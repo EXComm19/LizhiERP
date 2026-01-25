@@ -6,13 +6,34 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8279ABDE2F2210F70048FEC3 /* FirebaseAI in Frameworks */ = {isa = PBXBuildFile; productRef = 8279ABDD2F2210F70048FEC3 /* FirebaseAI */; };
+		8279ABE02F2210F70048FEC3 /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 8279ABDF2F2210F70048FEC3 /* FirebaseAILogic */; };
+		8279ABE22F2210F70048FEC3 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 8279ABE12F2210F70048FEC3 /* FirebaseAnalytics */; };
+		8279ABE42F2210F70048FEC3 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8279ABE32F2210F70048FEC3 /* FirebaseAnalyticsCore */; };
+		8279ABE62F2210F70048FEC3 /* FirebaseAnalyticsIdentitySupport in Frameworks */ = {isa = PBXBuildFile; productRef = 8279ABE52F2210F70048FEC3 /* FirebaseAnalyticsIdentitySupport */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		8279ABCE2F220E030048FEC3 /* LizhiERP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LizhiERP.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8279AC042F224E070048FEC3 /* Exceptions for "LizhiERP" folder in "LizhiERP" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8279ABCD2F220E030048FEC3 /* LizhiERP */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8279ABD02F220E030048FEC3 /* LizhiERP */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8279AC042F224E070048FEC3 /* Exceptions for "LizhiERP" folder in "LizhiERP" target */,
+			);
 			path = LizhiERP;
 			sourceTree = "<group>";
 		};
@@ -23,6 +44,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8279ABE02F2210F70048FEC3 /* FirebaseAILogic in Frameworks */,
+				8279ABE62F2210F70048FEC3 /* FirebaseAnalyticsIdentitySupport in Frameworks */,
+				8279ABDE2F2210F70048FEC3 /* FirebaseAI in Frameworks */,
+				8279ABE22F2210F70048FEC3 /* FirebaseAnalytics in Frameworks */,
+				8279ABE42F2210F70048FEC3 /* FirebaseAnalyticsCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +91,11 @@
 			);
 			name = LizhiERP;
 			packageProductDependencies = (
+				8279ABDD2F2210F70048FEC3 /* FirebaseAI */,
+				8279ABDF2F2210F70048FEC3 /* FirebaseAILogic */,
+				8279ABE12F2210F70048FEC3 /* FirebaseAnalytics */,
+				8279ABE32F2210F70048FEC3 /* FirebaseAnalyticsCore */,
+				8279ABE52F2210F70048FEC3 /* FirebaseAnalyticsIdentitySupport */,
 			);
 			productName = LizhiERP;
 			productReference = 8279ABCE2F220E030048FEC3 /* LizhiERP.app */;
@@ -94,6 +125,9 @@
 			);
 			mainGroup = 8279ABC52F220E030048FEC3;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8279ABCF2F220E030048FEC3 /* Products */;
 			projectDirPath = "";
@@ -256,6 +290,8 @@
 				DEVELOPMENT_TEAM = 58GWC9756N;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LizhiERP/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scanning for reciepts";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -288,6 +324,8 @@
 				DEVELOPMENT_TEAM = 58GWC9756N;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LizhiERP/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scanning for reciepts";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -332,6 +370,45 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8279ABDD2F2210F70048FEC3 /* FirebaseAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAI;
+		};
+		8279ABDF2F2210F70048FEC3 /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAILogic;
+		};
+		8279ABE12F2210F70048FEC3 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		8279ABE32F2210F70048FEC3 /* FirebaseAnalyticsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsCore;
+		};
+		8279ABE52F2210F70048FEC3 /* FirebaseAnalyticsIdentitySupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8279ABDC2F2210F70048FEC3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsIdentitySupport;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8279ABC62F220E030048FEC3 /* Project object */;
 }
