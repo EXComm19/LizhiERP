@@ -3,6 +3,7 @@ import Foundation
 
 @Model
 final class AssetEntity: Codable {
+    @Attribute(.unique) var id: UUID
     var ticker: String // Symbol or Account Name
     var holdings: Decimal
     var marketValue: Decimal // Current unitary price or total balance? Let's say Total Balance for cash/accounts.
@@ -15,7 +16,8 @@ final class AssetEntity: Codable {
         return type == .stock || type == .crypto || type == .other
     }
     
-    init(ticker: String, holdings: Decimal, marketValue: Decimal, type: AssetType = .stock, currency: String = "AUD", lastUpdated: Date = Date()) {
+    init(id: UUID = UUID(), ticker: String, holdings: Decimal, marketValue: Decimal, type: AssetType = .stock, currency: String = "AUD", lastUpdated: Date = Date()) {
+        self.id = id
         self.ticker = ticker
         self.holdings = holdings
         self.marketValue = marketValue // Interpreted as Total Value for Cash, Unit Price for Stocks? 
@@ -33,11 +35,12 @@ final class AssetEntity: Codable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case ticker, holdings, marketValue, lastUpdated, type, currency
+        case id, ticker, holdings, marketValue, lastUpdated, type, currency
     }
     
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         ticker = try container.decode(String.self, forKey: .ticker)
         holdings = try container.decode(Decimal.self, forKey: .holdings)
         marketValue = try container.decode(Decimal.self, forKey: .marketValue)
@@ -48,6 +51,7 @@ final class AssetEntity: Codable {
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
         try container.encode(ticker, forKey: .ticker)
         try container.encode(holdings, forKey: .holdings)
         try container.encode(marketValue, forKey: .marketValue)

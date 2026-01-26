@@ -10,6 +10,7 @@ enum PhysicalAssetStatus: String, Codable, CaseIterable {
 
 @Model
 final class PhysicalAsset: Codable {
+    @Attribute(.unique) var id: UUID
     var name: String
     var purchaseValue: Decimal
     var purchaseDate: Date
@@ -50,7 +51,8 @@ final class PhysicalAsset: Codable {
         return totalCost / days
     }
     
-    init(name: String, purchaseValue: Decimal, purchaseDate: Date, category: String = "General", status: PhysicalAssetStatus = .active, isInsured: Bool = false, insuranceCostYearly: Decimal = 0, icon: String = "cube.box.fill") {
+    init(id: UUID = UUID(), name: String, purchaseValue: Decimal, purchaseDate: Date, category: String = "General", status: PhysicalAssetStatus = .active, isInsured: Bool = false, insuranceCostYearly: Decimal = 0, icon: String = "cube.box.fill") {
+        self.id = id
         self.name = name
         self.purchaseValue = purchaseValue
         self.purchaseDate = purchaseDate
@@ -63,11 +65,12 @@ final class PhysicalAsset: Codable {
     
     // Codable implementation
     enum CodingKeys: String, CodingKey {
-        case name, purchaseValue, purchaseDate, category, status, retiredDate, isInsured, insuranceCostYearly, icon
+        case id, name, purchaseValue, purchaseDate, category, status, retiredDate, isInsured, insuranceCostYearly, icon
     }
     
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         name = try container.decode(String.self, forKey: .name)
         purchaseValue = try container.decode(Decimal.self, forKey: .purchaseValue)
         purchaseDate = try container.decode(Date.self, forKey: .purchaseDate)
@@ -81,6 +84,7 @@ final class PhysicalAsset: Codable {
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(purchaseValue, forKey: .purchaseValue)
         try container.encode(purchaseDate, forKey: .purchaseDate)

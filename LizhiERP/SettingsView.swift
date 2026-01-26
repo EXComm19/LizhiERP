@@ -1,41 +1,238 @@
 import SwiftUI
+import SwiftData
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var transactions: [Transaction]
+    
+    @State private var showFileImporter = false
+    @State private var showShareSheet = false
+    @State private var exportURL: URL?
+    @State private var importMessage: String?
+    @State private var showImportAlert = false
     
     var body: some View {
         NavigationStack {
-            List {
-                Section("Data & Personalization") {
-                    NavigationLink(destination: CategoryManagerView()) {
-                        Label("Manage Categories", systemImage: "tag.fill")
+            VStack(spacing: 0) {
+                // Unified Header
+                PageHeader(
+                    title: "Settings",
+                    leftAction: { dismiss() },
+                    rightContent: {
+                         Button {
+                             dismiss()
+                         } label: {
+                             Text("Done").bold().foregroundStyle(.orange)
+                         }
                     }
-                }
+                )
                 
-                Section("About") {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0.0 (Alpha)")
-                            .foregroundStyle(.secondary)
+                List {
+                    Section("Data & Personalization") {
+                        NavigationLink(destination: CategoryManagerView()) {
+                            Label("Manage Categories", systemImage: "tag.fill")
+                        }
                     }
-                }
-                
-                Section {
-                    Button(role: .destructive) {
-                        // Logout logic placeholder
-                    } label: {
-                        Text("Sign Out")
+                    
+                    Section("Backup & Sync") {
+                        Button {
+                            exportData()
+                        } label: {
+                            Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                        }
+                        
+                        Button {
+                            showFileImporter = true
+                        } label: {
+                            Label("Import Data (CSV)", systemImage: "square.and.arrow.down")
+                        }
+                    }
+                    
+                    Section("About") {
+                        HStack {
+                            Text("Version")
+                            Spacer()
+                            Text("1.0.0 (Alpha)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Section {
+                        Button(role: .destructive) {
+                            // Logout logic placeholder
+                        } label: {
+                            Text("Sign Out")
+                        }
                     }
                 }
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+            .navigationBarHidden(true)
+            .sheet(isPresented: $showShareSheet) {
+                if let url = exportURL {
+                    ShareSheet(activityItems: [url])
+                }
+            }
+            .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.commaSeparatedText]) { result in
+                switch result {
+                case .success(let url):
+                    importData(from: url)
+                case .failure(let error):
+                    print("Import failed: \(error.localizedDescription)")
+                }
+            }
+            .alert("Import Result", isPresented: $showImportAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(importMessage ?? "Unknown result")
+            }
+        }
+        .overlay {
+            if isImporting {
+                ZStack {
+                    Color.black.opacity(0.6).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(.white)
+                        
+                        Text("Importing Data...")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        
+                        ProgressView(value: importProgress)
+                            .progressViewStyle(.linear)
+                            .tint(.orange)
+                            .frame(width: 200)
+                        
+                        Text("\(Int(importProgress * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                    .padding(32)
+                    .background(Color(hex: "1A1A1A"))
+                    .cornerRadius(16)
+                    .shadow(radius: 20)
                 }
             }
         }
     }
+    
+    func exportData() {
+        let csv = CSVExportService.generateCSV(from: transactions)
+        let fileName = "LizhiERP_Export_\(Date().formatted(date: .numeric, time: .omitted).replacingOccurrences(of: "/", with: "-")).csv"
+        
+        if let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let fileURL = path.appendingPathComponent(fileName)
+            do {
+                try csv.write(to: fileURL, atomically: true, encoding: .utf8)
+                exportURL = fileURL
+                showShareSheet = true
+            } catch {
+                print("Export failed: \(error)")
+            }
+        }
+    }
+    
+    @State private var isImporting = false
+    @State private var importProgress: Double = 0.0
+    
+    func importData(from url: URL) {
+        isImporting = true
+        importProgress = 0.0
+        
+        // Start accessing security scoped resource
+        guard url.startAccessingSecurityScopedResource() else {
+            isImporting = false
+            return
+        }
+        
+        // Copy to temporary file to avoid locking issues
+        // and handle async processing safely
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempFile = tempDir.appendingPathComponent(url.lastPathComponent)
+        
+        do {
+            if FileManager.default.fileExists(atPath: tempFile.path) {
+                try FileManager.default.removeItem(at: tempFile)
+            }
+            try FileManager.default.copyItem(at: url, to: tempFile)
+        } catch {
+            print("Failed to copy file: \(error)")
+            url.stopAccessingSecurityScopedResource()
+            isImporting = false
+            return
+        }
+        
+        // We can stop accessing the original URL now that we have a copy
+        url.stopAccessingSecurityScopedResource()
+        
+        Task {
+            do {
+                // Read from temp file
+                var content = ""
+                // Try UTF-8 first
+                if let str = try? String(contentsOf: tempFile, encoding: .utf8) {
+                    content = str
+                } else {
+                    // Fallback to ASCII/MacOSRoman if needed, or just try generic
+                    content = try String(contentsOf: tempFile)
+                }
+                
+                // Parsing phase status
+                await MainActor.run { importProgress = 0.1 }
+                
+                let result = await CSVImportService.processCSV(content: content)
+                
+                // Cleanup temp file
+                try? FileManager.default.removeItem(at: tempFile)
+                
+                // Save to context on MainActor with batching
+                await MainActor.run {
+                    var count = 0
+                    let total = Double(result.transactions.count)
+                    
+                    // We can't easily yield within MainActor.run block in a loop efficiently without breaking context?
+                    // SwiftData context is main thread bound.
+                    // To keep UI responsive, we process in chunks and yield.
+                    
+                    Task {
+                        for tx in result.transactions {
+                            modelContext.insert(tx)
+                            count += 1
+                            
+                            // Yield every 50 items to let UI update (spinner animate)
+                            if count % 50 == 0 {
+                                importProgress = 0.1 + (0.9 * (Double(count) / total))
+                                try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                            }
+                        }
+                        
+                        try? modelContext.save() // Ensure data is persisted for background access
+                        
+                        importMessage = "Imported \(result.transactions.count) records.\nErrors: \(result.errors.count)"
+                        showImportAlert = true
+                        isImporting = false
+                        importProgress = 1.0
+                    }
+                }
+            } catch {
+                print("Failed to read file: \(error)")
+                await MainActor.run { isImporting = false }
+            }
+        }
+    }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    var activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

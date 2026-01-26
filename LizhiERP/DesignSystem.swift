@@ -83,3 +83,78 @@ func triggerHaptic(_ style: HapticFeedbackStyle) {
         light.impactOccurred()
     }
 }
+
+// MARK: - Reusable UI Components
+struct PageHeader<CenterContent: View, RightContent: View>: View {
+    let title: String
+    let leftAction: (() -> Void)?
+    var centerContent: () -> CenterContent
+    var rightContent: () -> RightContent
+    
+    init(
+        title: String,
+        leftAction: (() -> Void)? = nil,
+        @ViewBuilder centerContent: @escaping () -> CenterContent = { EmptyView() },
+        @ViewBuilder rightContent: @escaping () -> RightContent = { EmptyView() }
+    ) {
+        self.title = title
+        self.leftAction = leftAction
+        self.centerContent = centerContent
+        self.rightContent = rightContent
+    }
+    
+    var body: some View {
+        HStack {
+            // Left: Back Button or Title
+            if let action = leftAction {
+                Button(action: action) {
+                    Image(systemName: "arrow.left")
+                        .font(.title3) // Standardized size
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color(white: 0.15)) // Unify gray
+                        .clipShape(Circle())
+                }
+            }
+            
+            // Center: Title or Custom View (e.g. Month Picker)
+            // If custom view is EmptyView, show Title here?
+            // Actually, typical pattern:
+            // Left = Back, Center = Title/Control, Right = Actions
+            
+            Spacer()
+            
+            if CenterContent.self != EmptyView.self {
+                centerContent()
+            } else {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+            }
+            
+            Spacer()
+            
+            // Right: Actions
+            rightContent()
+                .frame(minWidth: 44, alignment: .trailing) // Balance the left side
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+        .background(Color.black) // Ensure background matches
+    }
+}
+
+// Helpers for unified button styles
+extension View {
+    func standardButtonStyle() -> some View {
+        self
+            .font(.body)
+            .foregroundStyle(.white)
+            .padding(10)
+            .background(Color(white: 0.15))
+            .clipShape(Circle())
+    }
+}

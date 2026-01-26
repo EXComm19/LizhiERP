@@ -131,45 +131,43 @@ actor FinancialEngine {
         return NSDecimalNumber(decimal: projectedPassiveIncome / ttmExpenses).doubleValue
     }
     
-    /// Returns tuple of (Active Income, Total Expenses) for the month
-    func calculateMonthlyMetrics(for date: Date = Date()) -> (activeIncome: Double, totalBurn: Double) {
+    /// Returns tuple of (Active Income, Total Expenses) for the specified period (month or year)
+    func calculateMetrics(from transactions: [Transaction], for date: Date = Date(), granularity: Calendar.Component = .month) -> (activeIncome: Double, totalBurn: Double) {
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month], from: date)
-        guard let startOfMonth = calendar.date(from: components),
-              let endOfMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth) else {
-            return (0.0, 0.0)
+        
+        let startOfPeriod: Date
+        let endOfPeriod: Date
+        
+        if granularity == .year {
+            let components = calendar.dateComponents([.year], from: date)
+            startOfPeriod = calendar.date(from: components)!
+            endOfPeriod = calendar.date(byAdding: .year, value: 1, to: startOfPeriod)!
+        } else {
+            let components = calendar.dateComponents([.year, .month], from: date)
+            startOfPeriod = calendar.date(from: components)!
+            endOfPeriod = calendar.date(byAdding: .month, value: 1, to: startOfPeriod)!
         }
         
-        // Predicate limited to Date to avoid SwiftData enum crash
-        let descriptor = FetchDescriptor<Transaction>(
-            predicate: #Predicate { $0.date >= startOfMonth && $0.date < endOfMonth }
-        )
+        var activeIncome: Decimal = 0
+        var expenses: Decimal = 0
         
-        do {
-            let transactions = try modelContext.fetch(descriptor)
-            
-            var activeIncome: Decimal = 0
-            var expenses: Decimal = 0
-            
-            for tx in transactions {
+        // Filter in memory from the passed snapshot (Source of Truth from View)
+        for tx in transactions {
+            if tx.date >= startOfPeriod && tx.date < endOfPeriod {
                 if tx.isActiveIncome {
                     activeIncome += tx.amount
                 } else if tx.type == .expense {
-                    // Exclude investments from "Burn" typically, unless user wants total outflow
+                    // Exclude investments from "Burn"
                     if tx.category != .investment {
                         expenses += tx.amount
                     }
                 }
             }
-            
-            return (
-                NSDecimalNumber(decimal: activeIncome).doubleValue,
-                NSDecimalNumber(decimal: expenses).doubleValue
-            )
-            
-        } catch {
-            print("Error fetching monthly metrics: \(error)")
-            return (0.0, 0.0)
         }
+        
+        return (
+            NSDecimalNumber(decimal: activeIncome).doubleValue,
+            NSDecimalNumber(decimal: expenses).doubleValue
+        )
     }
 }

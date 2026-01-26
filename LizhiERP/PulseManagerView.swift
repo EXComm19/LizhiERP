@@ -43,7 +43,7 @@ struct PulseManagerView: View {
                     }
                 }
                 .padding()
-                .padding(.top, 80) // Generous safe area top
+
                 
                 List {
                     // 1. Calendar Strip Section

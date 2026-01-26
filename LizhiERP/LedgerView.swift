@@ -5,55 +5,44 @@ struct LedgerView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Transaction.date, order: .reverse) private var allTransactions: [Transaction]
     
-    // Search
+    // State
+    @State private var displayDate: Date = Date()
     @State private var searchText: String = ""
-    
-    // Sort & Filters
     @State private var isFilterOpen: Bool = false
-    @State private var selectedType: TransactionType? = nil // Nil = All
-    @State private var selectedMonth: Date? = nil // Nil = All Time
+    @State private var selectedType: TransactionType? = nil
     @State private var selectedCategory: TransactionCategory? = nil
+    @State private var showDatePicker = false
     
-    // Filtering Logic
+    // Filtering Logic (Scoped to Display Month)
     var filteredTransactions: [Transaction] {
-        allTransactions.filter { tx in
-            // Search Text
-            let matchSearch = searchText.isEmpty || 
+        let calendar = Calendar.current
+        return allTransactions.filter { tx in
+            // 1. Month Scope (Base Filter)
+            let matchMonth = calendar.isDate(tx.date, equalTo: displayDate, toGranularity: .month)
+            if !matchMonth { return false }
+            
+            // 2. Search Text
+            let matchSearch = searchText.isEmpty ||
                 tx.subcategory.localizedCaseInsensitiveContains(searchText) ||
                 tx.category.rawValue.localizedCaseInsensitiveContains(searchText) ||
                 tx.contextTags.contains { $0.localizedCaseInsensitiveContains(searchText) }
             
-            // Type Filter
+            // 3. Type Filter
             let matchType = selectedType == nil || tx.type == selectedType
             
-            // Category Filter
+            // 4. Category Filter
             let matchCategory = selectedCategory == nil || tx.category == selectedCategory
             
-            // Month Filter
-            let matchMonth: Bool
-            if let month = selectedMonth {
-                let calendars = Calendar.current
-                matchMonth = calendars.isDate(tx.date, equalTo: month, toGranularity: .month)
-            } else {
-                matchMonth = true
-            }
-            
-            return matchSearch && matchType && matchCategory && matchMonth
+            return matchSearch && matchType && matchCategory
         }
     }
     
-    // Grouping
+    // Grouping by Day
     var groupedTransactions: [(Date, [Transaction])] {
         let grouped = Dictionary(grouping: filteredTransactions) { tx in
-            Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: tx.date))!
+            Calendar.current.startOfDay(for: tx.date)
         }
         return grouped.sorted { $0.key > $1.key }
-    }
-    
-    // Helper for Month Filter options
-    var availableMonths: [Date] {
-        let dates = allTransactions.map { Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: $0.date))! }
-        return Array(Set(dates)).sorted(by: >)
     }
     
     var body: some View {
@@ -61,64 +50,81 @@ struct LedgerView: View {
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Nav Bar
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "arrow.left")
-                            .font(.title2)
-                            .foregroundStyle(.white)
-                            .padding()
-                            .background(Color(hex: "1A1A1A"))
-                            .clipShape(Circle())
-                    }
-                    Spacer()
-                    Text("Ledger")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                    Spacer()
-                    
-                    // Import/Export Buttons
-                    HStack(spacing: 8) {
-                        // Export
-                        ShareLink(item: csvFile, preview: SharePreview("LizhiERP_Export.csv")) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.body)
-                                .foregroundStyle(.white)
-                                .padding(10)
-                                .background(Color(hex: "1A1A1A"))
-                                .clipShape(Circle())
+                // Unified Header
+                PageHeader(
+                    title: "Ledger",
+                    leftAction: nil, // Remove Back Button
+                    centerContent: {
+                        // Month Navigator
+                        HStack(spacing: 8) {
+                            Button {
+                                moveMonth(by: -1)
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .foregroundStyle(.gray)
+                                    .padding(8)
+                            }
+                            
+                            Button {
+                                showDatePicker = true 
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(displayDate.formatted(.dateTime.month(.wide).year()))
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white)
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            
+                            Button {
+                                moveMonth(by: 1)
+                            } label: {
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.gray)
+                                    .padding(8)
+                            }
                         }
-                        
-                        // Import
-                        Button {
-                           showImporter = true
-                        } label: {
-                            Image(systemName: "square.and.arrow.down")
-                                .font(.body)
-                                .foregroundStyle(.white)
-                                .padding(10)
-                                .background(Color(hex: "1A1A1A"))
-                                .clipShape(Circle())
+                    },
+                    rightContent: {
+                        HStack(spacing: 12) { // Tighter spacing for actions
+                             // Filter Toggle
+                             Button {
+                                 withAnimation { isFilterOpen.toggle() }
+                             } label: {
+                                 Image(systemName: "line.3.horizontal.decrease.circle")
+                                     .font(.title3)
+                                     .foregroundStyle(isFilterOpen ? .orange : .white)
+                                     .padding(8)
+                                     .background(Color(white: 0.15))
+                                     .clipShape(Circle())
+                             }
+                            
+                            // Edit/Import/Export Menu
+                            Menu {
+                                Button {
+                                    showImporter = true
+                                } label: {
+                                    Label("Import CSV", systemImage: "square.and.arrow.down")
+                                }
+                                
+                                ShareLink(item: csvFile, preview: SharePreview("Lizhi Export", image: Image(systemName: "tablecells"))) {
+                                    Label("Export CSV", systemImage: "square.and.arrow.up")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.title3)
+                                    .foregroundStyle(.white)
+                                    .padding(8)
+                                    .background(Color(white: 0.15))
+                                    .clipShape(Circle())
+                            }
                         }
                     }
-                    .padding(.trailing, 4)
-                    
-                    // Filter Toggle Button
-                    Button {
-                        withAnimation { isFilterOpen.toggle() }
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.title2)
-                            .foregroundStyle(isFilterActive ? .orange : .white)
-                            .padding()
-                            .background(Color(hex: "1A1A1A"))
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle().stroke(isFilterActive ? Color.orange : Color.clear, lineWidth: 1)
-                            )
-                    }
-                }
-                .padding()
+                )
                 
                 // Search Bar
                 HStack {
@@ -152,22 +158,6 @@ struct LedgerView: View {
                         .pickerStyle(.segmented)
                         .colorMultiply(.orange)
                         
-                        // Month Scroll
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                Button { selectedMonth = nil } label: {
-                                    Text("All Time")
-                                        .filterChip(isSelected: selectedMonth == nil)
-                                }
-                                ForEach(availableMonths, id: \.self) { date in
-                                    Button { selectedMonth = date } label: {
-                                        Text(date.formatted(.dateTime.month().year()))
-                                            .filterChip(isSelected: selectedMonth == date)
-                                    }
-                                }
-                            }
-                        }
-                        
                         // Category Scroll
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack {
@@ -191,7 +181,7 @@ struct LedgerView: View {
                 
                 // List
                 List {
-                    ForEach(groupedTransactions, id: \.0) { (month, txs) in
+                    ForEach(groupedTransactions, id: \.0) { (day, txs) in
                         Section {
                             ForEach(txs) { tx in
                                 TransactionRow(tx: tx)
@@ -201,7 +191,7 @@ struct LedgerView: View {
                                         showEditor = true
                                         triggerHaptic(.glassTap)
                                     }
-                                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                     .listRowBackground(Color.clear)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
@@ -212,14 +202,22 @@ struct LedgerView: View {
                                     }
                             }
                         } header: {
-                            Text(month.formatted(.dateTime.month(.wide).year()))
-                                .font(.callout)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.orange)
-                                .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 8, trailing: 16))
+                            HStack {
+                                Text(day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                                    .font(.footnote)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.secondary)
+                                    .textCase(.uppercase)
+                                Spacer()
+                                Text("$\(totalForDay(txs).formattedWithSeparator)")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            .padding(.vertical, 8)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         }
+                        .listRowSeparator(.hidden)
                     }
-                    .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -227,6 +225,12 @@ struct LedgerView: View {
         }
         .sheet(isPresented: $showEditor) {
             ManualTransactionView(isPresented: $showEditor, transactionToEdit: selectedTransaction)
+                .id(selectedTransaction?.id ?? UUID()) // Force refresh on selection change
+        }
+        .sheet(isPresented: $showDatePicker) {
+             DatePicker("Select Month", selection: $displayDate, displayedComponents: [.date])
+                 .datePickerStyle(.graphical)
+                 .presentationDetents([.medium])
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText], allowsMultipleSelection: false) { result in
             switch result {
@@ -238,19 +242,50 @@ struct LedgerView: View {
                 print("Import failed: \(error.localizedDescription)")
             }
         }
+        .overlay {
+            if isImporting {
+                ZStack {
+                    Color.black.opacity(0.6).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(.white)
+                        
+                        Text("Importing Data...")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        
+                        ProgressView(value: importProgress)
+                            .progressViewStyle(.linear)
+                            .tint(.orange)
+                            .frame(width: 200)
+                        
+                        Text("\(Int(importProgress * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                    .padding(32)
+                    .background(Color(hex: "1A1A1A"))
+                    .cornerRadius(16)
+                    .shadow(radius: 20)
+                }
+            }
+        }
     }
     
     @Environment(\.modelContext) private var modelContext
     
     // Import/Export
     @State private var showImporter = false
+    @State private var isImporting = false
+    @State private var importProgress: Double = 0.0
     
     // Editing
     @State private var selectedTransaction: Transaction? = nil
     @State private var showEditor = false
 
     var isFilterActive: Bool {
-        selectedType != nil || selectedMonth != nil || selectedCategory != nil
+        selectedType != nil || selectedCategory != nil
     }
     
     // Helper to delete
@@ -266,58 +301,85 @@ struct LedgerView: View {
     
     // Import Logic
     func importCSV(_ url: URL) {
-        // Run in background to avoid blocking thread
+        guard url.startAccessingSecurityScopedResource() else { return }
+        
+        // Copy to temp
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempFile = tempDir.appendingPathComponent(url.lastPathComponent)
+        
+        do {
+            if FileManager.default.fileExists(atPath: tempFile.path) {
+                try FileManager.default.removeItem(at: tempFile)
+            }
+            try FileManager.default.copyItem(at: url, to: tempFile)
+        } catch {
+            print("Failed to copy file: \(error)")
+            url.stopAccessingSecurityScopedResource()
+            return
+        }
+        
+        url.stopAccessingSecurityScopedResource()
+        
+        // Run in background
         Task {
             do {
-                if url.startAccessingSecurityScopedResource() {
-                    defer { url.stopAccessingSecurityScopedResource() }
-                    
-                    let data = try String(contentsOf: url, encoding: .utf8)
-                    let rows = data.components(separatedBy: "\n")
-                    var count = 0
-                    
-                    for row in rows.dropFirst() { // Skip header
-                        let columns = row.components(separatedBy: ",")
-                        if columns.count >= 6 {
-                            // Simple parsing
-                            // 0: Date, 1: Type, 2: Amount, 3: Category, 4: Sub, 5: Note
-                            let dateStr = columns[0]
-                            let typeStr = columns[1]
-                            let amountStr = columns[2]
-                            let catStr = columns[3] // We ignore this as we rely on UI category map usually, or default
-                            let subStr = columns[4]
-                            let noteStr = columns[5]
-                            
-                            // Date
-                            let formatter = ISO8601DateFormatter()
-                            let date = formatter.date(from: dateStr) ?? Date()
-                            
-                            // Type
-                            let type: TransactionType = (typeStr == "Income") ? .income : .expense
-                            
-                            // Amount (Simple cast, better to use Decimal)
-                            let amount = Decimal(string: amountStr) ?? 0
-                            
-                            let newTx = Transaction(
-                                amount: amount,
-                                type: type,
-                                category: .uncategorized, // Simplified for import
-                                source: .spending, // Default to spending instead of .manual
-                                date: date,
-                                contextTags: [noteStr].filter { !$0.isEmpty },
-                                subcategory: subStr
-                            )
-                            modelContext.insert(newTx)
-                            count += 1
-                        }
-                    }
-                    print("Imported \(count) transactions")
-                    triggerHaptic(.hustle)
+                var content = ""
+                if let str = try? String(contentsOf: tempFile, encoding: .utf8) {
+                    content = str
+                } else {
+                    content = try String(contentsOf: tempFile)
                 }
+                
+                // Use the unified CSVImportService!
+                let result = await CSVImportService.processCSV(content: content)
+                
+                try? FileManager.default.removeItem(at: tempFile)
+                
+                await MainActor.run {
+                    // Init progress UI state if needed, but LedgerView currently doesn't have the overlay built-in like SettingsView
+                    // We should add it or just rely on console/haptic?
+                    // User request implies visible progress.
+                    // Let's add the state to LedgerView first.
+                    isImporting = true
+                    importProgress = 0.1
+                    
+                    Task {
+                        var count = 0
+                        let total = Double(result.transactions.count)
+                        
+                        for tx in result.transactions {
+                            modelContext.insert(tx)
+                            count += 1
+                            if count % 50 == 0 {
+                                importProgress = 0.1 + (0.9 * (Double(count) / total))
+                                try? await Task.sleep(nanoseconds: 10_000_000)
+                            }
+                        }
+                        try? modelContext.save()
+                        print("Imported \(result.transactions.count) transactions")
+                        triggerHaptic(.hustle)
+                        isImporting = false
+                    }
+                    }
+    
+
             } catch {
                 print("Import failed: \(error)")
             }
         }
+    }
+    
+    // Helpers
+    func moveMonth(by value: Int) {
+        if let newDate = Calendar.current.date(byAdding: .month, value: value, to: displayDate) {
+            displayDate = newDate
+            triggerHaptic(.glassTap) // Correction: Using valid haptic style
+        }
+    }
+    
+    func totalForDay(_ txs: [Transaction]) -> Int {
+        let total = txs.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
+        return NSDecimalNumber(decimal: total).intValue
     }
 }
 
@@ -335,39 +397,33 @@ struct CSVDocument: FileDocument, Transferable {
     }
     
     init(configuration: ReadConfiguration) throws {
-        // We handle import via standard file reading, this is for opening files as a document
         self.transactions = []
     }
     
     // FileDocument protocol
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        let data = generateCSVData()
+        let stringData = CSVExportService.generateCSV(from: transactions)
+        let data = stringData.data(using: .utf8)!
         return FileWrapper(regularFileWithContents: data)
     }
     
     // Transferable protocol
     static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(contentType: .commaSeparatedText) { doc in
-            doc.generateCSVData()
-        } importing: { data in
-            CSVDocument() // Dummy import for Transferable, actual import is handled via fileImporter
+        // Explicitly export as a file with .csv extension
+        FileRepresentation(contentType: .commaSeparatedText) { doc in
+            // Create a temporary file
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "LizhiERP_Export_\(Date().formatted(date: .numeric, time: .omitted).replacingOccurrences(of: "/", with: "-")).csv"
+            let tempFile = tempDir.appendingPathComponent(fileName)
+            
+            let csvString = CSVExportService.generateCSV(from: doc.transactions)
+            try csvString.write(to: tempFile, atomically: true, encoding: .utf8)
+            
+            return SentTransferredFile(tempFile)
+        } importing: { file in
+            // We don't really support drag-and-drop import via this struct yet, just export focus
+            return CSVDocument()
         }
-    }
-    
-    func generateCSVData() -> Data {
-        let headers = "Date,Type,Amount,Category,Subcategory,Note\n"
-        let rows = transactions.map { tx in
-            let date = tx.date.formatted(.iso8601)
-            let type = tx.type == .expense ? "Expense" : "Income"
-            let amount = String(describing: tx.amount)
-            let cat = tx.category.rawValue
-            let sub = tx.subcategory
-            let note = tx.contextTags.joined(separator: "; ").replacingOccurrences(of: ",", with: " ") // Escape commas
-            return "\(date),\(type),\(amount),\(cat),\(sub),\(note)"
-        }.joined(separator: "\n")
-        
-        let csv = headers + rows
-        return csv.data(using: .utf8)!
     }
 }
 
@@ -382,22 +438,55 @@ struct TransactionRow: View {
                 .frame(width: 40, height: 40)
                 .overlay(Text(String(tx.category.rawValue.prefix(1))).font(.caption).bold().foregroundStyle(.gray))
             
-            VStack(alignment: .leading) {
-                Text(tx.subcategory.isEmpty ? tx.category.rawValue : tx.subcategory)
+            VStack(alignment: .leading, spacing: 2) {
+                // Primary: Subcategory (if exist) > Category
+                Text(!tx.subcategory.isEmpty ? tx.subcategory : tx.category.rawValue)
                     .foregroundStyle(.white)
                     .font(.body)
-                Text(tx.date.formatted(date: .numeric, time: .omitted))
-                    .foregroundStyle(.gray)
-                    .font(.caption)
+                    .fontWeight(.bold) // Bold as requested
+                
+                // Secondary: Note or Tags or original Category if subcat used
+                if !tx.contextTags.isEmpty || !tx.subcategory.isEmpty {
+                     Text(displayContext)
+                        .foregroundStyle(.gray)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
             }
             Spacer()
+            
             Text("\(tx.type == .expense ? "-" : "+")$\(Double(truncating: tx.amount as NSNumber), specifier: "%.2f")")
-                .foregroundStyle(tx.type == .expense ? .white : .green)
+                .foregroundStyle(tx.type == .expense ? .white.opacity(0.9) : .green)
                 .fontWeight(.medium)
+                .font(.callout)
         }
-        .padding()
+        .padding(12)
         .background(Color(hex: "1A1A1A"))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    var displayContext: String {
+        var parts: [String] = []
+        // If we showed subcategory as primary, maybe show category as secondary?
+        // User request: "entry should have the actual subcategory as the bold part, and the note as the secondary part"
+        // Let's prioritize Note/Tags here.
+        if !tx.subcategory.isEmpty {
+           // We used subcategory as title.
+           // Show Category name here? Or just notes?
+           // "note as secondary part".
+        } else {
+           // We used Category as title.
+        }
+        
+        // Append tags/notes
+        parts.append(contentsOf: tx.contextTags)
+        
+        // If no tags, maybe show category name to be helpful?
+        if parts.isEmpty && !tx.subcategory.isEmpty {
+            return tx.category.rawValue
+        }
+        
+        return parts.joined(separator: " • ")
     }
 }
 

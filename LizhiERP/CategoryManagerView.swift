@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct CategoryManagerView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<CategoryEntity> { $0.type == "Expense" }, sort: \CategoryEntity.sortOrder) private var expenseCategories: [CategoryEntity]
     @Query(filter: #Predicate<CategoryEntity> { $0.type == "Income" }, sort: \CategoryEntity.sortOrder) private var incomeCategories: [CategoryEntity]
@@ -11,64 +12,74 @@ struct CategoryManagerView: View {
     @State private var categoryToEdit: CategoryEntity?
     
     var body: some View {
-        VStack {
-            Picker("Type", selection: $selectedTab) {
-                Text("Expense").tag(TransactionType.expense)
-                Text("Income").tag(TransactionType.income)
-            }
-            .pickerStyle(.segmented)
-            .padding()
+        VStack(spacing: 0) {
+            // Unified Header
+            PageHeader(
+                title: "Categories",
+                leftAction: { dismiss() },
+                rightContent: {
+                    HStack(spacing: 12) {
+                        Button {
+                            DataManager.shared.resetCategories(context: modelContext)
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                                .standardButtonStyle()
+                        }
+                        
+                        Button {
+                            categoryToEdit = nil
+                            showEditor = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .standardButtonStyle()
+                        }
+                    }
+                }
+            )
             
-            List {
-                ForEach(selectedTab == .expense ? expenseCategories : incomeCategories) { cat in
-                    Button {
-                        categoryToEdit = cat
-                        showEditor = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            Circle()
-                                .fill(Color(hex: "2A2A2A"))
-                                .frame(width: 36, height: 36)
-                                .overlay(Image(systemName: cat.icon).foregroundStyle(.blue))
-                            
-                            VStack(alignment: .leading) {
-                                Text(cat.name)
-                                    .font(.headline)
-                                Text(cat.subcategories.joined(separator: ", "))
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                    .lineLimit(1)
+            VStack {
+                Picker("Type", selection: $selectedTab) {
+                    Text("Expense").tag(TransactionType.expense)
+                    Text("Income").tag(TransactionType.income)
+                }
+                .pickerStyle(.segmented)
+                .padding()
+                
+                List {
+                    ForEach(selectedTab == .expense ? expenseCategories : incomeCategories) { cat in
+                        Button {
+                            categoryToEdit = cat
+                            showEditor = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(Color(hex: "2A2A2A"))
+                                    .frame(width: 36, height: 36)
+                                    .overlay(Image(systemName: cat.icon).foregroundStyle(.blue))
+                                
+                                VStack(alignment: .leading) {
+                                    Text(cat.name)
+                                        .font(.headline)
+                                    Text(cat.subcategories.joined(separator: ", "))
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                modelContext.delete(cat)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
                     }
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            modelContext.delete(cat)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
                 }
-            }
-            .listStyle(.plain)
-        }
-        .navigationTitle("Categories")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    DataManager.shared.resetCategories(context: modelContext)
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                }
-                
-                Button {
-                    categoryToEdit = nil
-                    showEditor = true
-                } label: {
-                    Image(systemName: "plus")
-                }
+                .listStyle(.plain)
             }
         }
+        .navigationBarHidden(true)
         .sheet(isPresented: $showEditor) {
             CategoryEditorView(isPresented: $showEditor, categoryToEdit: categoryToEdit, defaultType: selectedTab)
         }

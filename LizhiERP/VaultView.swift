@@ -27,25 +27,22 @@ struct VaultView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // 1. Header
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Assets")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Total:")
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
-                    Text("$\(Int(NSDecimalNumber(decimal: totalNetWorth).doubleValue).formattedWithSeparator)")
-                        .font(.headline)
-                        .foregroundStyle(.gray)
+            // 1. Unified Header
+            PageHeader(
+                title: "Vault",
+                centerContent: {
+                   VStack(spacing: 2) {
+                       Text("NET WORTH")
+                           .font(.caption2)
+                           .fontWeight(.bold)
+                           .foregroundStyle(.gray)
+                       Text("$\(Int(NSDecimalNumber(decimal: totalNetWorth).doubleValue).formattedWithSeparator)")
+                           .font(.headline)
+                           .fontWeight(.bold)
+                           .foregroundStyle(.white)
+                   }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .padding(.top, 40)
+            )
             
             // 2. List Content
             List {
