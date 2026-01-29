@@ -39,7 +39,7 @@ struct CSVImportService {
                 dateIndex = headers.firstIndex(where: { $0.contains("date") || $0.contains("time") }) ?? -1
                 typeIndex = headers.firstIndex(where: { $0.contains("type") }) ?? -1
                 categoryIndex = headers.firstIndex(where: { $0 == "category" }) ?? -1
-                subIndex = headers.firstIndex(where: { $0.contains("sub") }) ?? -1
+                subIndex = headers.firstIndex(where: { $0.contains("subcategory") }) ?? -1
                 amountIndex = headers.firstIndex(where: { $0.contains("amount") || $0.contains("value") }) ?? -1
                 currencyIndex = headers.firstIndex(where: { $0.contains("cur") }) ?? -1
                 noteIndex = headers.firstIndex(where: { $0.contains("note") || $0.contains("desc") }) ?? -1

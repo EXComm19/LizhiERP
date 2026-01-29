@@ -208,9 +208,15 @@ struct VaultAssetRow: View {
                 }
                 
                 // Subtitle: e.g. "12500 AUD" or "150 IVV"
-                Text("\(asset.holdings.formatted()) \(asset.currency.isEmpty ? "Units" : asset.currency)")
-                    .font(.caption)
-                    .foregroundStyle(Color.lizhiTextSecondary)
+                if asset.type == .cash {
+                     Text(asset.customID ?? asset.currency)
+                        .font(.caption)
+                        .foregroundStyle(Color.lizhiTextSecondary)
+                } else {
+                    Text("\(asset.holdings.formatted()) \(asset.currency.isEmpty ? "Units" : asset.currency)")
+                        .font(.caption)
+                        .foregroundStyle(Color.lizhiTextSecondary)
+                }
             }
             
             Spacer()
