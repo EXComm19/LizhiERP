@@ -13,6 +13,8 @@ struct SubscriptionEditorView: View {
     @State private var firstBillDate: Date = Date()
     @State private var selectedIcon: String = "tv"
     
+    @State private var currency: String = CurrencyService.shared.baseCurrency
+    
     @State private var showDatePicker = false
     
     @FocusState private var isNameFocused: Bool
@@ -26,7 +28,7 @@ struct SubscriptionEditorView: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(hex: "111111").ignoresSafeArea()
+            Color.lizhiBackground.ignoresSafeArea()
             
             VStack(spacing: 24) {
                 // Header
@@ -34,14 +36,14 @@ struct SubscriptionEditorView: View {
                     Text(subscriptionToEdit == nil ? "New Subscription" : "Edit Subscription")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.lizhiTextPrimary)
                     Spacer()
                     Button {
                         isPresented = false
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                     }
                 }
                 .padding(.horizontal)
@@ -51,7 +53,7 @@ struct SubscriptionEditorView: View {
                     Text("NAME")
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                     
                     TextField("e.g. Netflix", text: $name)
                         .padding()
@@ -59,9 +61,9 @@ struct SubscriptionEditorView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.blue, lineWidth: 1)
-                                .background(Color(hex: "1A1A1A").cornerRadius(12))
+                                .background(Color.lizhiSurface.cornerRadius(12))
                         )
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.lizhiTextPrimary)
                         .focused($isNameFocused)
                 }
                 .padding(.horizontal)
@@ -71,7 +73,7 @@ struct SubscriptionEditorView: View {
                     Text("ICON")
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                     
                     HStack(spacing: 16) {
                         ForEach(icons, id: \.self) { icon in
@@ -80,11 +82,11 @@ struct SubscriptionEditorView: View {
                                 triggerHaptic(.glassTap)
                             } label: {
                                 Circle()
-                                    .fill(selectedIcon == icon ? Color.white : Color(hex: "2A2A2A"))
+                                    .fill(selectedIcon == icon ? Color.lizhiTextPrimary : Color.lizhiSurface)
                                     .frame(width: 50, height: 50)
                                     .overlay(
                                         Image(systemName: icon)
-                                            .foregroundStyle(selectedIcon == icon ? .black : .gray)
+                                            .foregroundStyle(selectedIcon == icon ? Color.lizhiBackground : Color.lizhiTextSecondary)
                                     )
                             }
                         }
@@ -99,18 +101,25 @@ struct SubscriptionEditorView: View {
                         Text("AMOUNT")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                         
                         HStack {
-                            Text("$")
-                                .foregroundStyle(.gray)
+                            // Currency Picker
+                            Picker("", selection: $currency) {
+                                ForEach(CurrencyService.shared.availableCurrencies, id: \.self) { code in
+                                    Text(CurrencyService.shared.symbol(for: code)).tag(code)
+                                }
+                            }
+                            .tint(Color.lizhiTextSecondary)
+                            .labelsHidden()
+                            
                             TextField("0.00", value: $amount, format: .number.precision(.fractionLength(2)))
                                 .keyboardType(.decimalPad)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.lizhiTextPrimary)
                         }
                         .padding()
                         .frame(height: 56)
-                        .background(Color(hex: "2A2A2A"))
+                        .background(Color.lizhiSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     
@@ -118,7 +127,7 @@ struct SubscriptionEditorView: View {
                         Text("CYCLE")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                         
                         Menu {
                             Button("Monthly") { selectedCycle = "Monthly" }
@@ -127,16 +136,16 @@ struct SubscriptionEditorView: View {
                         } label: {
                             HStack {
                                 Text(selectedCycle)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.lizhiTextPrimary)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
                                 Spacer()
                                 Image(systemName: "chevron.up.chevron.down")
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color.lizhiTextSecondary)
                             }
                             .padding()
                             .frame(height: 56)
-                            .background(Color(hex: "2A2A2A"))
+                            .background(Color.lizhiSurface)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
@@ -148,21 +157,21 @@ struct SubscriptionEditorView: View {
                     Text("FIRST BILL")
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                     
                     Button {
                         showDatePicker = true
                     } label: {
                         HStack {
                             Text(firstBillDate.formatted(date: .numeric, time: .omitted))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.lizhiTextPrimary)
                             Spacer()
                             Image(systemName: "calendar")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.lizhiTextSecondary)
                         }
                         .padding()
                         .frame(height: 56)
-                        .background(Color(hex: "2A2A2A"))
+                        .background(Color.lizhiSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                 }
@@ -174,10 +183,10 @@ struct SubscriptionEditorView: View {
                 Button(action: saveSubscription) {
                     Text(subscriptionToEdit == nil ? "Create Subscription" : "Update Subscription")
                         .font(.headline)
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Color.lizhiBackground)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(Color.white)
+                        .background(Color.lizhiTextPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding(.horizontal)
@@ -192,6 +201,7 @@ struct SubscriptionEditorView: View {
                 selectedCycle = sub.cycle
                 firstBillDate = sub.firstBillDate
                 selectedIcon = sub.icon
+                currency = sub.currency
             } else {
                 isNameFocused = true
             }
@@ -218,10 +228,11 @@ struct SubscriptionEditorView: View {
             sub.cycle = selectedCycle
             sub.firstBillDate = firstBillDate
             sub.icon = selectedIcon
+            sub.currency = currency
             print("DEBUG: Updating existing subscription: \(sub.name)")
         } else {
             // Create new
-            let sub = Subscription(name: name, amount: Decimal(amount), cycle: selectedCycle, firstBillDate: firstBillDate, icon: selectedIcon)
+            let sub = Subscription(name: name, amount: Decimal(amount), cycle: selectedCycle, firstBillDate: firstBillDate, icon: selectedIcon, currency: currency)
             modelContext.insert(sub)
             print("DEBUG: Inserting new subscription: \(sub.name)")
         }

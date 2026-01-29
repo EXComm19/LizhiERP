@@ -139,7 +139,35 @@ class AIService {
         }
         
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        
+        decoder.dateDecodingStrategy = .custom({ decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            // Try standard ISO8601 with fractional seconds first
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try standard ISO8601 without fractional seconds
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try simple YYYY-MM-DD
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            // Throw error if none match
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Date string does not match expected format: \(dateString)")
+        })
         
         return try decoder.decode(FinancialForecast.self, from: data)
     }

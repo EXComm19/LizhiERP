@@ -20,6 +20,12 @@ extension Color {
         endPoint: .bottomTrailing
     )
     
+    // Semantic Colors (Light/Dark Mode Adaptive)
+    static let lizhiBackground = Color(uiColor: .systemBackground)
+    static let lizhiSurface = Color(uiColor: .secondarySystemBackground)
+    static let lizhiTextPrimary = Color(uiColor: .label)
+    static let lizhiTextSecondary = Color(uiColor: .secondaryLabel)
+    
     // Helper for Hex
     init(hex: String) {
         let scanner = Scanner(string: hex)
@@ -41,8 +47,8 @@ struct GlassCardModifier: ViewModifier {
         content
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: .white.opacity(0.1), radius: 10, x: 0, y: 5)
-            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.1), radius: 10, x: 0, y: 5)
+            .shadow(color: Color.primary.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 }
 
@@ -53,7 +59,7 @@ extension View {
     
     func liquidBackground() -> some View {
         self.background(
-            Color(uiColor: .systemBackground) // Solid, adaptive background (White in Light, Black in Dark)
+            Color.lizhiBackground
                 .ignoresSafeArea()
         )
     }
@@ -111,17 +117,12 @@ struct PageHeader<CenterContent: View, RightContent: View>: View {
                     Image(systemName: "arrow.left")
                         .font(.title3) // Standardized size
                         .fontWeight(.semibold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.lizhiTextPrimary)
                         .frame(width: 44, height: 44)
-                        .background(Color(white: 0.15)) // Unify gray
+                        .background(Color.lizhiSurface) // Adaptive Gray
                         .clipShape(Circle())
                 }
             }
-            
-            // Center: Title or Custom View (e.g. Month Picker)
-            // If custom view is EmptyView, show Title here?
-            // Actually, typical pattern:
-            // Left = Back, Center = Title/Control, Right = Actions
             
             Spacer()
             
@@ -131,7 +132,7 @@ struct PageHeader<CenterContent: View, RightContent: View>: View {
                 Text(title)
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.lizhiTextPrimary)
             }
             
             Spacer()
@@ -143,7 +144,7 @@ struct PageHeader<CenterContent: View, RightContent: View>: View {
         .padding(.horizontal, 20)
         .padding(.top, 16)
         .padding(.bottom, 12)
-        .background(Color.black) // Ensure background matches
+        .background(Color.lizhiBackground) // Adaptive Background
     }
 }
 
@@ -152,9 +153,21 @@ extension View {
     func standardButtonStyle() -> some View {
         self
             .font(.body)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.lizhiTextPrimary)
             .padding(10)
-            .background(Color(white: 0.15))
+            .background(Color.lizhiSurface)
             .clipShape(Circle())
+    }
+    
+    // Helper for filter chips
+    func filterChip(isSelected: Bool) -> some View {
+        self
+            .font(.caption)
+            .fontWeight(.medium)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.blue : Color.lizhiSurface)
+            .foregroundStyle(isSelected ? .white : Color.lizhiTextSecondary)
+            .clipShape(Capsule())
     }
 }

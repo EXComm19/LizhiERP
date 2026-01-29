@@ -13,7 +13,7 @@ struct RootView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             // Background
-            Color.black.ignoresSafeArea()
+            Color.lizhiBackground.ignoresSafeArea()
             
             // Screen Content
             Group {

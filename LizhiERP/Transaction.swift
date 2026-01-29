@@ -29,22 +29,22 @@ final class Transaction: Codable {
     @Attribute(.unique) var id: UUID
     var amount: Decimal
     var type: TransactionType
-    var category: TransactionCategory
+    var category: TransactionCategory  // Engine Map: Survival, Material, Experiential, Investment
     var source: TransactionSource
     var date: Date
     var contextTags: [String]
     
-    var subcategory: String // Specifics like "Food", "Taxi", "Rent"
-    var linkedAssetID: UUID? // Link to AssetEntity (e.g. which wallet paid)
-    var currency: String = "AUD" // Default currency
+    var categoryName: String = ""       // Category from CSV: "Food", "Transport", "Shopping" (for pie chart)
+    var subcategory: String = ""        // Subcategory within Category: "Groceries", "Dining Out", etc.
+    var linkedAccountID: String?        // Link to AssetEntity via customID (e.g. "CBA")
+    var currency: String = "AUD"        // Default currency
     
     var isActiveIncome: Bool {
         // Simplified: All income types count towards "Active Income" for now
-        // This fixes the issue where CSV imported data defaults to "Spending" source and gets ignored.
         return type == .income
     }
     
-    init(id: UUID = UUID(), amount: Decimal, type: TransactionType, category: TransactionCategory, source: TransactionSource, date: Date = Date(), contextTags: [String] = [], subcategory: String = "", linkedAssetID: UUID? = nil, currency: String = "AUD") {
+    init(id: UUID = UUID(), amount: Decimal, type: TransactionType, category: TransactionCategory, source: TransactionSource, date: Date = Date(), contextTags: [String] = [], categoryName: String = "", subcategory: String = "", linkedAccountID: String? = nil, currency: String = "AUD") {
         self.id = id
         self.amount = amount
         self.type = type
@@ -52,13 +52,14 @@ final class Transaction: Codable {
         self.source = source
         self.date = date
         self.contextTags = contextTags
+        self.categoryName = categoryName
         self.subcategory = subcategory
-        self.linkedAssetID = linkedAssetID
+        self.linkedAccountID = linkedAccountID
         self.currency = currency
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, amount, type, category, source, date, contextTags, subcategory, linkedAssetID, currency
+        case id, amount, type, category, source, date, contextTags, categoryName, subcategory, linkedAccountID, currency
     }
     
     required init(from decoder: Decoder) throws {
@@ -70,8 +71,9 @@ final class Transaction: Codable {
         source = try container.decode(TransactionSource.self, forKey: .source)
         date = try container.decode(Date.self, forKey: .date)
         contextTags = try container.decode([String].self, forKey: .contextTags)
+        categoryName = try container.decodeIfPresent(String.self, forKey: .categoryName) ?? ""
         subcategory = try container.decodeIfPresent(String.self, forKey: .subcategory) ?? ""
-        linkedAssetID = try container.decodeIfPresent(UUID.self, forKey: .linkedAssetID)
+        linkedAccountID = try container.decodeIfPresent(String.self, forKey: .linkedAccountID)
         currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "AUD"
     }
     
@@ -84,9 +86,9 @@ final class Transaction: Codable {
         try container.encode(source, forKey: .source)
         try container.encode(date, forKey: .date)
         try container.encode(contextTags, forKey: .contextTags)
+        try container.encode(categoryName, forKey: .categoryName)
         try container.encode(subcategory, forKey: .subcategory)
-        try container.encode(subcategory, forKey: .subcategory)
-        try container.encode(linkedAssetID, forKey: .linkedAssetID)
+        try container.encode(linkedAccountID, forKey: .linkedAccountID)
         try container.encode(currency, forKey: .currency)
     }
 }

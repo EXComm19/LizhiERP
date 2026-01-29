@@ -67,11 +67,14 @@ actor FinancialEngine {
             var expenses: Decimal = 0
             
             for tx in transactions {
+                // Multi-Currency Conversion
+                let convertedAmount = CurrencyService.shared.convertToBase(tx.amount, from: tx.currency)
+                
                 if tx.isActiveIncome {
-                    activeIncome += tx.amount
+                    activeIncome += convertedAmount
                 } else if tx.type == .expense {
                     if tx.category != .investment {
-                        expenses += tx.amount
+                        expenses += convertedAmount
                     }
                 }
             }
@@ -95,7 +98,11 @@ actor FinancialEngine {
         
         do {
             let assets = try modelContext.fetch(assetDescriptor)
-            totalAssets = assets.reduce(0) { $0 + $1.marketValue }
+            // Fix: Use totalValue (Holdings * Price) and convert currency
+            totalAssets = assets.reduce(0) { sum, asset in
+                let valueInBase = CurrencyService.shared.convertToBase(asset.totalValue, from: asset.currency)
+                return sum + valueInBase
+            }
         } catch {
             print("Error fetching assets: \(error)")
         }
@@ -119,7 +126,8 @@ actor FinancialEngine {
             for tx in transactions {
                 // Filter in memory for safety
                 if tx.type == .expense && tx.category != .investment {
-                    ttmExpenses += tx.amount
+                    let amountInBase = CurrencyService.shared.convertToBase(tx.amount, from: tx.currency)
+                    ttmExpenses += amountInBase
                 }
             }
         } catch {
@@ -154,12 +162,14 @@ actor FinancialEngine {
         // Filter in memory from the passed snapshot (Source of Truth from View)
         for tx in transactions {
             if tx.date >= startOfPeriod && tx.date < endOfPeriod {
+                let amountInBase = CurrencyService.shared.convertToBase(tx.amount, from: tx.currency)
+                
                 if tx.isActiveIncome {
-                    activeIncome += tx.amount
+                    activeIncome += amountInBase
                 } else if tx.type == .expense {
                     // Exclude investments from "Burn"
                     if tx.category != .investment {
-                        expenses += tx.amount
+                        expenses += amountInBase
                     }
                 }
             }
@@ -169,5 +179,67 @@ actor FinancialEngine {
             NSDecimalNumber(decimal: activeIncome).doubleValue,
             NSDecimalNumber(decimal: expenses).doubleValue
         )
+    }
+    
+    // MARK: - Asset Management
+    
+    /// Recalculates balances for all assets with a Custom ID (Bank Accounts).
+    /// Formula: Current Balance = Initial Balance + Total Income (Linked) - Total Expenses (Linked)
+    func recalculateAssetBalances() async {
+        let assetDescriptor = FetchDescriptor<AssetEntity>(predicate: #Predicate { $0.customID != nil })
+        let txDescriptor = FetchDescriptor<Transaction>(predicate: #Predicate { $0.linkedAccountID != nil })
+        
+        do {
+            let assets = try modelContext.fetch(assetDescriptor)
+            let transactions = try modelContext.fetch(txDescriptor)
+            
+            // Group transactions by Account ID for efficiency
+            let txsByAccount = Dictionary(grouping: transactions, by: { $0.linkedAccountID ?? "" })
+            
+            for asset in assets {
+                guard let accountID = asset.customID else { continue }
+                
+                var newBalance = asset.initialBalance
+                print("DEBUG: Engine - Recalculating Asset: \(asset.ticker) (ID: \(accountID)). Initial Balance: \(newBalance)")
+                
+                if let accountTxs = txsByAccount[accountID] {
+                    print("DEBUG: Engine - Found \(accountTxs.count) linked transactions for \(accountID)")
+                    for tx in accountTxs {
+                        // Multi-currency handling: 
+                        // For MVP, assume same currency or raw amount impact as per request.
+                        let amountEffect = tx.amount
+                        
+                        if tx.type == .income {
+                            newBalance += amountEffect
+                            print("DEBUG:   + Income: \(amountEffect)")
+                        } else if tx.type == .expense {
+                            newBalance -= amountEffect
+                            print("DEBUG:   - Expense: \(amountEffect)")
+                        }
+                    }
+                } else {
+                    print("DEBUG: Engine - No linked transactions found for \(accountID)")
+                }
+                
+                
+                // Polymorphic Assignment:
+                if asset.type == .cash {
+                    asset.cashBalance = newBalance
+                    // asset.marketValue is ignored or kept as 0 for cash
+                    print("DEBUG: Engine - Final Cash Balance for \(asset.ticker): \(newBalance)")
+                } else {
+                    asset.marketValue = newBalance
+                    print("DEBUG: Engine - Final Market Value for \(asset.ticker): \(newBalance)")
+                }
+                
+                asset.lastUpdated = Date()
+            }
+            
+            try modelContext.save()
+            print("FinancialEngine: Asset balances recalculated.")
+            
+        } catch {
+            print("Error recalculating asset balances: \(error)")
+        }
     }
 }

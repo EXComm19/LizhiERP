@@ -15,7 +15,8 @@ struct CSVExportService {
             let id = tx.id.uuidString
             let date = dateFormatter.string(from: tx.date)
             let type = tx.type.rawValue
-            let category = tx.category.rawValue
+            // Use categoryName (e.g. "Food") if present, otherwise fall back to engine map (e.g. "Survival")
+            let category = escapeCSV(tx.categoryName.isEmpty ? tx.category.rawValue : tx.categoryName)
             let subcategory = escapeCSV(tx.subcategory)
             let amount = "\(tx.amount)"
             let currency = tx.currency

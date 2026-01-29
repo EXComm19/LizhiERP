@@ -12,6 +12,10 @@ struct SettingsView: View {
     @State private var exportURL: URL?
     @State private var importMessage: String?
     @State private var showImportAlert = false
+    @State private var showWipeAlert = false
+    
+    // Currency State
+    @State private var selectedBaseCurrency: String = CurrencyService.shared.baseCurrency
     
     var body: some View {
         NavigationStack {
@@ -30,9 +34,21 @@ struct SettingsView: View {
                 )
                 
                 List {
-                    Section("Data & Personalization") {
+                    Section("General") {
                         NavigationLink(destination: CategoryManagerView()) {
                             Label("Manage Categories", systemImage: "tag.fill")
+                        }
+                        
+                        // Base Currency Selector
+                        Picker(selection: $selectedBaseCurrency) {
+                            ForEach(CurrencyService.shared.availableCurrencies, id: \.self) { code in
+                                Text("\(CurrencyService.shared.symbol(for: code)) \(code)").tag(code)
+                            }
+                        } label: {
+                            Label("Base Currency", systemImage: "dollarsign.circle.fill")
+                        }
+                        .onChange(of: selectedBaseCurrency) { _, newValue in
+                            CurrencyService.shared.baseCurrency = newValue
                         }
                     }
                     
@@ -47,6 +63,14 @@ struct SettingsView: View {
                             showFileImporter = true
                         } label: {
                             Label("Import Data (CSV)", systemImage: "square.and.arrow.down")
+                        }
+                    }
+                    
+                    Section("Data Management") {
+                        Button(role: .destructive) {
+                            showWipeAlert = true
+                        } label: {
+                            Label("Wipe All Transactions", systemImage: "trash.fill")
                         }
                     }
                     
@@ -87,6 +111,14 @@ struct SettingsView: View {
             } message: {
                 Text(importMessage ?? "Unknown result")
             }
+            .alert("Wipe All Data", isPresented: $showWipeAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete Everything", role: .destructive) {
+                     wipeAllTransactions()
+                }
+            } message: {
+                Text("This action cannot be undone. All transaction records will be permanently deleted.")
+            }
         }
         .overlay {
             if isImporting {
@@ -119,6 +151,26 @@ struct SettingsView: View {
         }
     }
     
+    func wipeAllTransactions() {
+        do {
+            try modelContext.delete(model: Transaction.self)
+            try modelContext.save()
+            print("Settings: All transactions wiped.")
+            
+            // Trigger Engine to reset Assets (recalculate with 0 transactions)
+            let container = modelContext.container
+            Task {
+                let engine = FinancialEngine(modelContainer: container)
+                await engine.recalculateAssetBalances()
+            }
+            
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+        } catch {
+            print("Wipe failed: \(error)")
+        }
+    }
+
     func exportData() {
         let csv = CSVExportService.generateCSV(from: transactions)
         let fileName = "LizhiERP_Export_\(Date().formatted(date: .numeric, time: .omitted).replacingOccurrences(of: "/", with: "-")).csv"

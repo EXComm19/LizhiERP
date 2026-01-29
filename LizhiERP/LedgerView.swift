@@ -4,6 +4,7 @@ import SwiftData
 struct LedgerView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Transaction.date, order: .reverse) private var allTransactions: [Transaction]
+    @Query private var categories: [CategoryEntity]
     
     // State
     @State private var displayDate: Date = Date()
@@ -47,102 +48,112 @@ struct LedgerView: View {
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.lizhiBackground.ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Unified Header
-                PageHeader(
-                    title: "Ledger",
-                    leftAction: nil, // Remove Back Button
-                    centerContent: {
-                        // Month Navigator
-                        HStack(spacing: 8) {
-                            Button {
-                                moveMonth(by: -1)
-                            } label: {
-                                Image(systemName: "chevron.left")
-                                    .foregroundStyle(.gray)
-                                    .padding(8)
-                            }
-                            
-                            Button {
-                                showDatePicker = true 
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text(displayDate.formatted(.dateTime.month(.wide).year()))
-                                        .font(.headline)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.white)
-                                    Image(systemName: "chevron.down")
-                                        .font(.caption2)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.gray)
-                                }
-                            }
-                            
-                            Button {
-                                moveMonth(by: 1)
-                            } label: {
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.gray)
-                                    .padding(8)
-                            }
+            VStack(alignment: .leading, spacing: 0) {
+                // Header: Large Bold Title (Left Aligned)
+                HStack {
+                    Text("Ledger")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.lizhiTextPrimary)
+                    
+                    Spacer()
+                    
+                    // Actions
+                    HStack(spacing: 12) {
+                        // Filter Toggle
+                        Button {
+                            withAnimation { isFilterOpen.toggle() }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .font(.title3)
+                                .foregroundStyle(isFilterOpen ? .orange : Color.lizhiTextPrimary)
+                                .padding(8)
+                                .background(Color.lizhiSurface)
+                                .clipShape(Circle())
                         }
-                    },
-                    rightContent: {
-                        HStack(spacing: 12) { // Tighter spacing for actions
-                             // Filter Toggle
-                             Button {
-                                 withAnimation { isFilterOpen.toggle() }
-                             } label: {
-                                 Image(systemName: "line.3.horizontal.decrease.circle")
-                                     .font(.title3)
-                                     .foregroundStyle(isFilterOpen ? .orange : .white)
-                                     .padding(8)
-                                     .background(Color(white: 0.15))
-                                     .clipShape(Circle())
-                             }
-                            
-                            // Edit/Import/Export Menu
-                            Menu {
-                                Button {
-                                    showImporter = true
-                                } label: {
-                                    Label("Import CSV", systemImage: "square.and.arrow.down")
-                                }
-                                
-                                ShareLink(item: csvFile, preview: SharePreview("Lizhi Export", image: Image(systemName: "tablecells"))) {
-                                    Label("Export CSV", systemImage: "square.and.arrow.up")
-                                }
+                        
+                        // Import/Export Menu
+                        Menu {
+                            Button {
+                                showImporter = true
                             } label: {
-                                Image(systemName: "ellipsis")
-                                    .font(.title3)
-                                    .foregroundStyle(.white)
-                                    .padding(8)
-                                    .background(Color(white: 0.15))
-                                    .clipShape(Circle())
+                                Label("Import CSV", systemImage: "square.and.arrow.down")
                             }
+                            
+                            ShareLink(item: csvFile, preview: SharePreview("Lizhi Export", image: Image(systemName: "tablecells"))) {
+                                Label("Export CSV", systemImage: "square.and.arrow.up")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.title3)
+                                .foregroundStyle(Color.lizhiTextPrimary)
+                                .padding(8)
+                                .background(Color.lizhiSurface)
+                                .clipShape(Circle())
                         }
                     }
-                )
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+                
+                // Month Navigator
+                HStack {
+                    Button {
+                        moveMonth(by: -1)
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .foregroundStyle(Color.lizhiTextSecondary)
+                            .padding(8)
+                    }
+                    
+                    Button {
+                        showDatePicker = true 
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(displayDate.formatted(.dateTime.month(.wide).year()))
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.lizhiTextPrimary)
+                            Image(systemName: "chevron.down")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.lizhiTextSecondary)
+                        }
+                    }
+                    
+                    Button {
+                        moveMonth(by: 1)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(Color.lizhiTextSecondary)
+                            .padding(8)
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
                 
                 // Search Bar
                 HStack {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                     TextField("Search transactions...", text: $searchText)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.lizhiTextPrimary)
                         .tint(.orange)
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(Color.lizhiTextSecondary)
                         }
                     }
                 }
                 .padding()
-                .background(Color(hex: "1A1A1A"))
+                .background(Color.lizhiSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 10)
                 
                 // Expandable Filter Panel
@@ -174,8 +185,9 @@ struct LedgerView: View {
                             }
                         }
                     }
-                    .padding()
-                    .background(Color(hex: "111111"))
+                    .padding(.vertical)
+                    .padding(.horizontal, 20)
+                    .background(Color.lizhiSurface)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
@@ -184,14 +196,14 @@ struct LedgerView: View {
                     ForEach(groupedTransactions, id: \.0) { (day, txs) in
                         Section {
                             ForEach(txs) { tx in
-                                TransactionRow(tx: tx)
+                                TransactionRow(tx: tx, categories: categories)
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         selectedTransaction = tx
                                         showEditor = true
                                         triggerHaptic(.glassTap)
                                     }
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                                     .listRowBackground(Color.clear)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
@@ -206,15 +218,18 @@ struct LedgerView: View {
                                 Text(day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
                                     .font(.footnote)
                                     .fontWeight(.bold)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.lizhiTextSecondary)
                                     .textCase(.uppercase)
                                 Spacer()
+                                // Summation here does not respect currency conversion.
+                                // It just sums values. For a ledger list, this might be okay or misleading.
+                                // Let's keep as is but fix style.
                                 Text("$\(totalForDay(txs).formattedWithSeparator)")
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color.lizhiTextSecondary)
                             }
                             .padding(.vertical, 8)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                         }
                         .listRowSeparator(.hidden)
                     }
@@ -430,75 +445,67 @@ struct CSVDocument: FileDocument, Transferable {
 // Subcomponents
 struct TransactionRow: View {
     let tx: Transaction
+    let categories: [CategoryEntity]
+    
+    var icon: String {
+        // 1. Match by Category Name
+        if let match = categories.first(where: { $0.name == tx.categoryName }) {
+            return match.icon
+        }
+        // 2. Match by Subcategory
+        if !tx.subcategory.isEmpty, let match = categories.first(where: { $0.subcategories.contains(tx.subcategory) }) {
+            return match.icon
+        }
+        // 3. Fallback
+        return "circle"
+    }
     
     var body: some View {
         HStack {
             Circle()
-                .fill(Color(hex: "2A2A2A"))
+                .fill(Color.lizhiSurface)
                 .frame(width: 40, height: 40)
-                .overlay(Text(String(tx.category.rawValue.prefix(1))).font(.caption).bold().foregroundStyle(.gray))
+                .overlay(Image(systemName: icon).foregroundStyle(Color.lizhiTextSecondary))
             
             VStack(alignment: .leading, spacing: 2) {
-                // Primary: Subcategory (if exist) > Category
-                Text(!tx.subcategory.isEmpty ? tx.subcategory : tx.category.rawValue)
-                    .foregroundStyle(.white)
+                // Primary: Subcategory (if exist) > Category Name > Engine Map
+                Text(!tx.subcategory.isEmpty ? tx.subcategory : (!tx.categoryName.isEmpty ? tx.categoryName : tx.category.rawValue))
+                    .foregroundStyle(Color.lizhiTextPrimary)
                     .font(.body)
                     .fontWeight(.bold) // Bold as requested
                 
                 // Secondary: Note or Tags or original Category if subcat used
                 if !tx.contextTags.isEmpty || !tx.subcategory.isEmpty {
                      Text(displayContext)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                         .font(.caption)
                         .lineLimit(1)
                 }
             }
             Spacer()
             
-            Text("\(tx.type == .expense ? "-" : "+")$\(Double(truncating: tx.amount as NSNumber), specifier: "%.2f")")
-                .foregroundStyle(tx.type == .expense ? .white.opacity(0.9) : .green)
+            Text("\(tx.type == .expense ? "-" : "+")\(CurrencyService.shared.symbol(for: tx.currency.isEmpty ? "AUD" : tx.currency))\(Double(truncating: tx.amount as NSNumber), specifier: "%.2f")")
+                .foregroundStyle(tx.type == .expense ? Color.lizhiTextPrimary.opacity(0.9) : .green)
                 .fontWeight(.medium)
                 .font(.callout)
         }
         .padding(12)
-        .background(Color(hex: "1A1A1A"))
+        .background(Color.lizhiSurface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
     var displayContext: String {
         var parts: [String] = []
-        // If we showed subcategory as primary, maybe show category as secondary?
-        // User request: "entry should have the actual subcategory as the bold part, and the note as the secondary part"
-        // Let's prioritize Note/Tags here.
-        if !tx.subcategory.isEmpty {
-           // We used subcategory as title.
-           // Show Category name here? Or just notes?
-           // "note as secondary part".
-        } else {
-           // We used Category as title.
-        }
-        
         // Append tags/notes
         parts.append(contentsOf: tx.contextTags)
         
         // If no tags, maybe show category name to be helpful?
         if parts.isEmpty && !tx.subcategory.isEmpty {
-            return tx.category.rawValue
+            return !tx.categoryName.isEmpty ? tx.categoryName : tx.category.rawValue
         }
         
         return parts.joined(separator: " • ")
     }
 }
 
-extension View {
-    func filterChip(isSelected: Bool) -> some View {
-        self
-            .font(.caption)
-            .fontWeight(.medium)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(isSelected ? Color.orange : Color(hex: "2A2A2A"))
-            .foregroundStyle(isSelected ? .black : .white)
-            .clipShape(Capsule())
-    }
-}
+

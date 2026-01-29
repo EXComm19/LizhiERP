@@ -7,10 +7,13 @@ struct VaultView: View {
     
     // Editor State
     @State private var showAssetEditor: Bool = false
+    @State private var selectedAsset: AssetEntity? = nil
     
-    // Derived
+    // Derived - Convert all values to base currency before summing
     var totalNetWorth: Decimal {
-        assets.reduce(0) { $0 + $1.totalValue }
+        assets.reduce(0) { total, asset in
+            total + CurrencyService.shared.convertToBase(asset.totalValue, from: asset.currency)
+        }
     }
     
     var cashAssets: [AssetEntity] {
@@ -18,7 +21,7 @@ struct VaultView: View {
     }
     
     var stockAssets: [AssetEntity] {
-        assets.filter { $0.type == .stock || $0.type == .crypto } // Group crypto with stock or separate? Design shows Stock separately. 
+        assets.filter { $0.type == .stock || $0.type == .crypto }
     }
     
     var otherAssets: [AssetEntity] {
@@ -26,44 +29,54 @@ struct VaultView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 1. Unified Header
-            PageHeader(
-                title: "Vault",
-                centerContent: {
-                   VStack(spacing: 2) {
-                       Text("NET WORTH")
-                           .font(.caption2)
-                           .fontWeight(.bold)
-                           .foregroundStyle(.gray)
-                       Text("$\(Int(NSDecimalNumber(decimal: totalNetWorth).doubleValue).formattedWithSeparator)")
-                           .font(.headline)
-                           .fontWeight(.bold)
-                           .foregroundStyle(.white)
-                   }
-                }
-            )
+        VStack(alignment: .leading, spacing: 0) {
+            // Header: Large Bold Title + Subtitle (Left Aligned)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Assets")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.lizhiTextPrimary)
+                
+                Text("Total: \(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(Int(NSDecimalNumber(decimal: totalNetWorth).doubleValue).formattedWithSeparator)")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.lizhiTextSecondary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
             
-            // 2. List Content
+            // Content List - Using List for swipe actions
             List {
                 // CASH SECTION
                 if !cashAssets.isEmpty {
                     Section {
                         ForEach(cashAssets) { asset in
                             VaultAssetRow(asset: asset, icon: "wallet.pass.fill", iconColor: .blue)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedAsset = asset
+                                    showAssetEditor = true
+                                    triggerHaptic(.glassTap)
+                                }
+                                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deleteAsset(asset)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
-                        .onDelete(perform: { deleteAsset(at: $0, from: cashAssets) })
                     } header: {
                         Text("CASH")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                             .kerning(1.2)
-                            .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .listSectionSeparator(.hidden)
                 }
                 
                 // STOCK SECTION
@@ -71,19 +84,31 @@ struct VaultView: View {
                     Section {
                         ForEach(stockAssets) { asset in
                             VaultAssetRow(asset: asset, icon: "chart.line.uptrend.xyaxis", iconColor: .green)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedAsset = asset
+                                    showAssetEditor = true
+                                    triggerHaptic(.glassTap)
+                                }
+                                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deleteAsset(asset)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
-                        .onDelete(perform: { deleteAsset(at: $0, from: stockAssets) })
                     } header: {
                         Text("STOCK")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                             .kerning(1.2)
-                            .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .listSectionSeparator(.hidden)
                 }
                 
                 // OTHER SECTION
@@ -91,19 +116,31 @@ struct VaultView: View {
                     Section {
                         ForEach(otherAssets) { asset in
                             VaultAssetRow(asset: asset, icon: "cube.box.fill", iconColor: .purple)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedAsset = asset
+                                    showAssetEditor = true
+                                    triggerHaptic(.glassTap)
+                                }
+                                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deleteAsset(asset)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
-                        .onDelete(perform: { deleteAsset(at: $0, from: otherAssets) })
                     } header: {
                         Text("OTHER")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                             .kerning(1.2)
-                            .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .listSectionSeparator(.hidden)
                 }
                 
                 // Bottom Padding
@@ -116,25 +153,20 @@ struct VaultView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.lizhiBackground.ignoresSafeArea())
         .sheet(isPresented: $showAssetEditor) {
-            VaultAssetEditor(isPresented: $showAssetEditor)
+            VaultAssetEditor(isPresented: $showAssetEditor, assetToEdit: selectedAsset)
         }
-        // Sync with RootView? 
-        // Ideally RootView's FAB opens this sheet. 
-        // Since `showAssetEditor` is local State here, RootView can't toggle it easily unless we use bindings
-        // or a shared store.
-        // Given I updated RootView to have its own `showAssetEditor` state, 
-        // I actually need `VaultAssetEditor` to be available. 
-        // I will define `VaultAssetEditor` in this file so RootView can use it.
+        .onChange(of: showAssetEditor) { _, newValue in
+            if !newValue {
+                selectedAsset = nil // Clear selection when sheet closes
+            }
+        }
     }
     
-    func deleteAsset(at offsets: IndexSet, from list: [AssetEntity]) {
-        for index in offsets {
-            let asset = list[index]
-            modelContext.delete(asset)
-            triggerHaptic(.glassTap)
-        }
+    func deleteAsset(_ asset: AssetEntity) {
+        modelContext.delete(asset)
+        triggerHaptic(.glassTap)
     }
 }
 
@@ -149,7 +181,7 @@ struct VaultAssetRow: View {
         HStack(spacing: 16) {
             // Icon
             Circle()
-                .fill(Color(hex: "1A1A1A")) // Darker inner bg
+                .fill(Color.lizhiSurface) // Darker inner bg
                 .frame(width: 48, height: 48)
                 .overlay(
                     Image(systemName: icon)
@@ -158,23 +190,39 @@ struct VaultAssetRow: View {
                 )
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(asset.ticker)
-                    .font(.headline)
-                    .foregroundStyle(.white)
+                HStack(spacing: 6) {
+                    Text(asset.ticker)
+                        .font(.headline)
+                        .foregroundStyle(Color.lizhiTextPrimary)
+                    
+                    if let code = asset.customID {
+                        Text(code)
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.lizhiTextSecondary.opacity(0.1))
+                            .foregroundStyle(Color.lizhiTextSecondary)
+                            .clipShape(Capsule())
+                    }
+                }
                 
                 // Subtitle: e.g. "12500 AUD" or "150 IVV"
                 Text("\(asset.holdings.formatted()) \(asset.currency.isEmpty ? "Units" : asset.currency)")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color.lizhiTextSecondary)
             }
             
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
+                // Show raw value here or converted?
+                // Usually Vault shows the raw value I have.
+                // Dashboard shows the Net Worth.
                 Text("$\(Int(NSDecimalNumber(decimal: asset.totalValue).doubleValue).formattedWithSeparator)")
                     .font(.headline) // Make it bold/prominent
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.lizhiTextPrimary)
                 
                 // For stocks, ideally show change %. We don't have this in data yet.
                 // Placeholder logic:
@@ -187,9 +235,9 @@ struct VaultAssetRow: View {
             }
         }
         .padding()
-        .background(Color(hex: "111111")) // Dark Card
+        .background(Color.lizhiSurface) // Dark Card
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.lizhiTextSecondary.opacity(0.1), lineWidth: 1))
     }
 }
 
@@ -198,12 +246,19 @@ struct VaultAssetRow: View {
 struct VaultAssetEditor: View {
     @Environment(\.modelContext) private var modelContext
     @Binding var isPresented: Bool
+    var assetToEdit: AssetEntity? = nil
     
     @State private var name: String = "" // Ticker/Name
     @State private var holdings: Double?
     @State private var value: Double? // Market Value / Balance
     @State private var type: AssetType = .cash
-    @State private var currency: String = "AUD"
+    @State private var currency: String = CurrencyService.shared.baseCurrency
+    
+    // Bank Account Features
+    @State private var customID: String = ""
+    @State private var initialBalance: Double?
+    
+    var isEditing: Bool { assetToEdit != nil }
     
     var body: some View {
         NavigationStack {
@@ -221,19 +276,42 @@ struct VaultAssetEditor: View {
                     TextField("Name (e.g. CommBank, IVV)", text: $name)
                     
                     if type == .cash {
-                        TextField("Balance", value: $value, format: .number)
+                        TextField("Account ID (e.g. CBA, AMEX)", text: $customID)
+                            .textInputAutocapitalization(.characters)
+                        
+                        TextField("Initial Balance", value: $initialBalance, format: .number)
                             .keyboardType(.decimalPad)
-                        // Hidden holdings = 1 implicitly
+                            
+                        // Current Balance (Computed/Updated via Transactions, but editable override)
+                        LabeledContent("Current Balance") {
+                             TextField("Current Balance", value: $value, format: .number)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
                     } else {
                         TextField("Units Held", value: $holdings, format: .number)
                             .keyboardType(.decimalPad)
                         TextField("Price per Unit", value: $value, format: .number)
                             .keyboardType(.decimalPad)
-                        TextField("Currency/Symbol (e.g. AUD, USD)", text: $currency)
+                    }
+                    
+                    // Currency Picker
+                    Picker("Currency", selection: $currency) {
+                        ForEach(CurrencyService.shared.availableCurrencies, id: \.self) { code in
+                            Text("\(CurrencyService.shared.symbol(for: code)) (\(code))").tag(code)
+                        }
+                    }
+                }
+                
+                if type == .cash {
+                    Section {
+                        Text("Transactions linked to this Account ID will automatically adjust the Current Balance based on the Initial Balance.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
-            .navigationTitle("Add Asset")
+            .navigationTitle(isEditing ? "Edit Asset" : "Add Asset")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { isPresented = false }
@@ -242,24 +320,103 @@ struct VaultAssetEditor: View {
                     Button("Save") {
                         saveAsset()
                     }
-                    .disabled(name.isEmpty || value == nil)
+                    .disabled(name.isEmpty || (type == .cash && value == nil && initialBalance == nil))
                 }
             }
+            .onAppear {
+                if let passedAsset = assetToEdit {
+                    print("DEBUG: AssetEditor onAppear - Passed Asset: \(passedAsset.ticker). Cached MV: \(passedAsset.marketValue)")
+                    
+                    // Force a fetch from a FRESH Context to ensure we get the latest data updated by the background actor
+                    let freshContext = ModelContext(modelContext.container)
+                    freshContext.autosaveEnabled = false
+                    
+                    // Robust Fetch using PersistentModelID
+                    let id = passedAsset.persistentModelID
+                    
+                    if let freshAsset = freshContext.model(for: id) as? AssetEntity {
+                        print("DEBUG: AssetEditor - Fresh Context Fetch Success via ID. MV: \(freshAsset.marketValue), Cash: \(freshAsset.cashBalance ?? -1)")
+                        name = freshAsset.ticker
+                        holdings = NSDecimalNumber(decimal: freshAsset.holdings).doubleValue
+                        if freshAsset.type == .cash {
+                            value = NSDecimalNumber(decimal: freshAsset.cashBalance ?? 0).doubleValue
+                        } else {
+                            value = NSDecimalNumber(decimal: freshAsset.marketValue).doubleValue
+                        }
+                        type = freshAsset.type
+                        currency = freshAsset.currency
+                        customID = freshAsset.customID ?? ""
+                        initialBalance = NSDecimalNumber(decimal: freshAsset.initialBalance).doubleValue
+                    } else {
+                        print("DEBUG: AssetEditor - Fresh Fetch Failed (ID lookup failed), using passed asset.")
+                        // Fallback
+                        name = passedAsset.ticker
+                        holdings = NSDecimalNumber(decimal: passedAsset.holdings).doubleValue
+                        if passedAsset.type == .cash {
+                            value = NSDecimalNumber(decimal: passedAsset.cashBalance ?? 0).doubleValue
+                        } else {
+                            value = NSDecimalNumber(decimal: passedAsset.marketValue).doubleValue
+                        }
+                        type = passedAsset.type
+                        currency = passedAsset.currency
+                        customID = passedAsset.customID ?? ""
+                        initialBalance = NSDecimalNumber(decimal: passedAsset.initialBalance).doubleValue
+                    }
+                }
+            }
+            }
         }
-    }
+    
     
     func saveAsset() {
         let finalHoldings = (type == .cash) ? 1 : (Decimal(holdings ?? 0))
         let finalValue = Decimal(value ?? 0)
+        let finalInitial = Decimal(initialBalance ?? 0)
+        let finalCustomID = customID.isEmpty ? nil : customID
         
-        let asset = AssetEntity(
-            ticker: name,
-            holdings: finalHoldings,
-            marketValue: finalValue,
-            type: type,
-            currency: currency
-        )
-        modelContext.insert(asset)
+        // Polymorphic Save Logic
+        // For Cash: value -> cashBalance, marketValue -> 0
+        // For Stock: value -> marketValue, cashBalance -> nil
+        
+        let targetMarketValue = (type == .cash) ? 0 : finalValue
+        let targetCashBalance = (type == .cash) ? finalValue : nil
+        
+        if let existingAsset = assetToEdit {
+            // Update existing
+            existingAsset.ticker = name
+            existingAsset.holdings = finalHoldings
+            existingAsset.marketValue = targetMarketValue
+            existingAsset.cashBalance = targetCashBalance
+            existingAsset.type = type
+            existingAsset.currency = currency
+            existingAsset.customID = finalCustomID
+            existingAsset.initialBalance = finalInitial
+            existingAsset.lastUpdated = Date()
+        } else {
+            // Create new
+            let asset = AssetEntity(
+                ticker: name,
+                holdings: finalHoldings,
+                marketValue: targetMarketValue,
+                type: type,
+                currency: currency,
+                customID: finalCustomID,
+                initialBalance: finalInitial,
+                cashBalance: targetCashBalance
+            )
+            modelContext.insert(asset)
+        }
+        
+        // Critical: Explicitly save context after edit to ensure disk persistence
+        try? modelContext.save()
+        
+        // Trigger Engine just in case details changed that affect calculation
+        let container = modelContext.container
+        Task {
+            let engine = FinancialEngine(modelContainer: container)
+            await engine.recalculateAssetBalances()
+        }
+        
         triggerHaptic(.hustle)
         isPresented = false
     }

@@ -20,9 +20,10 @@ struct CategoryManagerView: View {
                 rightContent: {
                     HStack(spacing: 12) {
                         Button {
-                            DataManager.shared.resetCategories(context: modelContext)
+                            DataManager.shared.seedCategories(context: modelContext)
+                            triggerHaptic(.hustle)
                         } label: {
-                            Image(systemName: "arrow.counterclockwise")
+                            Image(systemName: "arrow.triangle.2.circlepath") // Sync icon
                                 .standardButtonStyle()
                         }
                         

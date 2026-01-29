@@ -24,6 +24,8 @@ struct ManualTransactionView: View {
     @State private var date: Date = Date()
     @State private var showDatePicker = false
     
+    @State private var currency: String = CurrencyService.shared.baseCurrency
+    
     // Focus State
     @FocusState private var isAmountFocused: Bool
     
@@ -44,7 +46,7 @@ struct ManualTransactionView: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            Color(hex: "111111").ignoresSafeArea()
+            Color.lizhiBackground.ignoresSafeArea()
             
             VStack(spacing: 24) {
                 // 1. Header
@@ -56,12 +58,19 @@ struct ManualTransactionView: View {
                 // 3. Value & Date Row
                 HStack(spacing: 12) {
                     HStack {
-                        Text("$")
-                            .foregroundStyle(.gray)
+                        // Currency Picker instead of static "$"
+                        Picker("", selection: $currency) {
+                            ForEach(CurrencyService.shared.availableCurrencies, id: \.self) { code in
+                                Text(CurrencyService.shared.symbol(for: code)).tag(code)
+                            }
+                        }
+                        .tint(Color.lizhiTextSecondary)
+                        .labelsHidden()
+                        
                         TextField("0.00", value: $inputAmount, format: .number.precision(.fractionLength(2)))
                             .keyboardType(.decimalPad)
                             .focused($isAmountFocused)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.lizhiTextPrimary)
                             .font(.system(size: 20, weight: .bold, design: .monospaced))
                     }
                     .padding()
@@ -69,17 +78,17 @@ struct ManualTransactionView: View {
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.orange.opacity(0.8), lineWidth: 1)
-                            .background(Color(hex: "1A1A1A").cornerRadius(12))
+                            .background(Color.lizhiSurface.cornerRadius(12))
                     )
                     
                     Button { showDatePicker = true } label: {
                         Text(date.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)))
                             .font(.system(size: 16, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.lizhiTextPrimary)
                             .padding()
                             .frame(height: 56)
                             .frame(maxWidth: .infinity)
-                            .background(Color(hex: "2A2A2A"))
+                            .background(Color.lizhiSurface)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .frame(width: 140)
@@ -94,7 +103,7 @@ struct ManualTransactionView: View {
                             Text("CATEGORY")
                                 .font(.caption)
                                 .fontWeight(.bold)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.lizhiTextSecondary)
                                 .padding(.horizontal)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -107,7 +116,7 @@ struct ManualTransactionView: View {
                                     if currentCategories.isEmpty {
                                         Text("No categories found. Go to Settings to add.")
                                             .font(.caption)
-                                            .foregroundStyle(.gray)
+                                            .foregroundStyle(Color.lizhiTextSecondary)
                                             .padding(.horizontal)
                                     }
                                 }
@@ -121,7 +130,7 @@ struct ManualTransactionView: View {
                                 Text("SUBCATEGORY")
                                     .font(.caption)
                                     .fontWeight(.bold)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color.lizhiTextSecondary)
                                     .padding(.horizontal)
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
@@ -138,23 +147,26 @@ struct ManualTransactionView: View {
                         }
                     }
                     .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCategory)
+                
                 } // End if !transfer
-  
+                
+                // Account Picker
+                accountPicker
                 
                 // 5. Details / Note
                 VStack(alignment: .leading, spacing: 8) {
                     Text("NOTE")
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                         .padding(.horizontal)
                     
                     TextField("Description", text: $note)
                         .padding()
                         .frame(height: 56)
-                        .background(Color(hex: "2A2A2A"))
+                        .background(Color.lizhiSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.lizhiTextPrimary)
                         .padding(.horizontal)
                 }
                 
@@ -164,10 +176,10 @@ struct ManualTransactionView: View {
                 Button(action: saveTransaction) {
                     Text(transactionToEdit == nil ? "Add Record" : "Update Record")
                         .font(.headline)
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Color.lizhiBackground) // Contrast against button
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(Color.white)
+                        .background(Color.lizhiTextPrimary) // Invert: White on Black bg
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding(.horizontal)
@@ -177,12 +189,15 @@ struct ManualTransactionView: View {
         }
         .onAppear {
             if let tx = transactionToEdit {
+                print("DEBUG: Editing Transaction - ID: \(tx.id), Amount: \(tx.amount), Account: \(tx.linkedAccountID ?? "nil")")
                 // Pre-fill for editing
                 inputAmount = NSDecimalNumber(decimal: tx.amount).doubleValue
                 selectedType = tx.type
                 date = tx.date
                 selectedSubcategory = tx.subcategory
+                currency = tx.currency 
                 note = tx.contextTags.first ?? "" // Assuming first tag is note for now
+                selectedAccountID = tx.linkedAccountID
                 
                 // Find matching CategoryEntity
                 // Since we don't store CategoryEntity ID in Transaction (yet), we match by mappedCategory and attempt to find a name match if possible
@@ -230,15 +245,15 @@ struct ManualTransactionView: View {
             Text(transactionToEdit == nil ? "New Record" : "Edit Record")
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.lizhiTextPrimary)
             Spacer()
             Button { isPresented = false } label: {
                 Image(systemName: "xmark")
                     .font(.subheadline)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.lizhiTextSecondary)
                     .padding(8)
-                    .background(Color(hex: "2A2A2A"))
+                    .background(Color.lizhiSurface)
                     .clipShape(Circle())
             }
         }
@@ -249,13 +264,13 @@ struct ManualTransactionView: View {
     var segmentedControl: some View {
         HStack(spacing: 0) {
             segmentButton("Expense", .expense)
-            Divider().background(Color.white.opacity(0.1))
+            Divider().background(Color.lizhiTextPrimary.opacity(0.1))
             segmentButton("Income", .income)
-            Divider().background(Color.white.opacity(0.1))
+            Divider().background(Color.lizhiTextPrimary.opacity(0.1))
             segmentButton("Move Money", .transfer)
         }
         .frame(height: 44)
-        .background(Color(hex: "2A2A2A"))
+        .background(Color.lizhiSurface)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)
     }
@@ -267,9 +282,14 @@ struct ManualTransactionView: View {
         } label: {
             Text(title)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(selectedType == type ? .white : .gray)
+                .foregroundStyle(selectedType == type ? Color.lizhiTextPrimary : Color.lizhiTextSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(selectedType == type ? Color(hex: "3A3A3A") : Color.clear)
+                .background(selectedType == type ? Color.lizhiSurface.opacity(0.5) : Color.clear) // Can improve active state
+                .overlay(
+                     selectedType == type ? 
+                     RoundedRectangle(cornerRadius: 10).stroke(Color.lizhiTextPrimary.opacity(0.1), lineWidth: 1).padding(2) 
+                     : nil
+                )
         }
     }
     
@@ -284,21 +304,21 @@ struct ManualTransactionView: View {
             VStack(spacing: 6) {
                 ZStack {
                     Circle()
-                        .fill(selectedCategory?.persistentModelID == cat.persistentModelID ? Color.blue.opacity(0.2) : Color(hex: "2A2A2A"))
+                        .fill(selectedCategory?.persistentModelID == cat.persistentModelID ? Color.blue.opacity(0.2) : Color.lizhiSurface)
                         .frame(width: 48, height: 48) // Smaller than previous 56
                     
                     Image(systemName: cat.icon)
                         .font(.body) // Smaller font
-                        .foregroundStyle(selectedCategory?.persistentModelID == cat.persistentModelID ? .blue : .gray)
+                        .foregroundStyle(selectedCategory?.persistentModelID == cat.persistentModelID ? .blue : Color.lizhiTextSecondary)
                 }
                 .overlay(
                     Circle()
-                        .stroke(selectedCategory?.persistentModelID == cat.persistentModelID ? Color.gray.opacity(0.5) : Color.clear, lineWidth: 1)
+                        .stroke(selectedCategory?.persistentModelID == cat.persistentModelID ? Color.lizhiTextSecondary.opacity(0.5) : Color.clear, lineWidth: 1)
                 )
                 
                 Text(cat.name)
                     .font(.caption2)
-                    .foregroundStyle(selectedCategory?.persistentModelID == cat.persistentModelID ? .white : .gray)
+                    .foregroundStyle(selectedCategory?.persistentModelID == cat.persistentModelID ? Color.lizhiTextPrimary : Color.lizhiTextSecondary)
             }
         }
     }
@@ -313,20 +333,84 @@ struct ManualTransactionView: View {
                 .fontWeight(.medium)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(selectedSubcategory == name ? Color.white : Color(hex: "2A2A2A"))
-                .foregroundStyle(selectedSubcategory == name ? .black : .gray)
+                .background(selectedSubcategory == name ? Color.lizhiTextPrimary : Color.lizhiSurface)
+                .foregroundStyle(selectedSubcategory == name ? Color.lizhiBackground : Color.lizhiTextSecondary)
                 .clipShape(Capsule())
         }
     }
     
     // MARK: - Logic
     
+    // Account Selection
+    @Query(filter: #Predicate<AssetEntity> { $0.customID != nil }) private var cashAccounts: [AssetEntity]
+    @State private var selectedAccountID: String? = nil
+    
+    // ... (Existing inits and binding)
+    
+    // UI Account Picker
+    var accountPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ACCOUNT (OPTIONAL)")
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.lizhiTextSecondary)
+                .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    // "None" Option
+                    Button {
+                        selectedAccountID = nil
+                        triggerHaptic(.glassTap)
+                    } label: {
+                        Text("None")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(selectedAccountID == nil ? Color.lizhiTextPrimary : Color.lizhiSurface)
+                            .foregroundStyle(selectedAccountID == nil ? Color.lizhiBackground : Color.lizhiTextSecondary)
+                            .clipShape(Capsule())
+                    }
+                    
+                    ForEach(cashAccounts) { account in
+                        if let id = account.customID {
+                            Button {
+                                selectedAccountID = id
+                                triggerHaptic(.glassTap)
+                            } label: {
+                                Text(account.ticker) // Display Name
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(selectedAccountID == id ? Color.lizhiTextPrimary : Color.lizhiSurface)
+                                    .foregroundStyle(selectedAccountID == id ? Color.lizhiBackground : Color.lizhiTextSecondary)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    // ... (Existing body) -> Insert `accountPicker` before Note section or Details
+    
     func saveTransaction() {
-        guard let amount = inputAmount, amount > 0 else { return }
+        print("DEBUG: Attempting to save...")
+        guard let amount = inputAmount, amount > 0 else {
+             print("DEBUG: Save failed - Invalid Amount: \(String(describing: inputAmount))")
+             return
+        }
         
         // Use selected options or fallback
-        let subcat = selectedSubcategory.isEmpty ? (selectedCategory?.name ?? "") : selectedSubcategory
+        let categoryName = selectedCategory?.name ?? ""
+        let subcat = selectedSubcategory
         let mappedCat = selectedCategory?.mappedCategory ?? .survival
+        
+        print("DEBUG: Saving - Amount: \(amount), Type: \(selectedType), Account: \(selectedAccountID ?? "nil")")
         
         if let tx = transactionToEdit {
             // Update Existing
@@ -334,8 +418,12 @@ struct ManualTransactionView: View {
             tx.type = selectedType
             tx.category = mappedCat
             tx.date = date
+            tx.categoryName = categoryName
             tx.subcategory = subcat
             tx.contextTags = note.isEmpty ? [] : [note]
+            tx.currency = currency
+            tx.linkedAccountID = selectedAccountID
+            print("DEBUG: Updated existing transaction")
         } else {
             // Create New
             let newTx = Transaction(
@@ -345,12 +433,31 @@ struct ManualTransactionView: View {
                 source: .spending,
                 date: date,
                 contextTags: [],
-                subcategory: subcat
+                categoryName: categoryName,
+                subcategory: subcat,
+                linkedAccountID: selectedAccountID,
+                currency: currency
             )
             if !note.isEmpty {
                 newTx.contextTags.append(note)
             }
             modelContext.insert(newTx)
+            print("DEBUG: Inserted new transaction")
+        }
+        
+        // Trigger Engine for Balance Update
+        do {
+            try modelContext.save()
+            print("DEBUG: ModelContext Saved successfully")
+        } catch {
+            print("DEBUG: Failed to save context: \(error)")
+        }
+        
+        let container = modelContext.container
+        Task {
+            let engine = FinancialEngine(modelContainer: container)
+            await engine.recalculateAssetBalances()
+            print("DEBUG: Engine recalculation triggered")
         }
         
         triggerHaptic(.hustle)

@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 struct CockpitView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Transaction.date, order: .reverse) private var allTransactions: [Transaction]
     @Query private var assets: [AssetEntity]
+    @Query private var categories: [CategoryEntity]
     
     @State private var financialEngine: FinancialEngine?
     
@@ -12,10 +14,15 @@ struct CockpitView: View {
     @State private var activeIncome: Double = 0.0
     @State private var totalBurn: Double = 0.0
     
-    // Spending Habits
+    // Spending Habits (High-Level)
     @State private var survivalSpend: Double = 0.0
     @State private var materialSpend: Double = 0.0
     @State private var experientialSpend: Double = 0.0
+    @State private var investmentSpend: Double = 0.0
+    @State private var uncategorizedSpend: Double = 0.0
+    
+    // Subcategory Breakdown (For Pie Chart - e.g., Food, Transport, Entertainment)
+    @State private var subcategoryBreakdown: [String: Double] = [:]
     
     // AI Insights (Persisted to save tokens)
     @AppStorage("strategicInsight") private var strategicIdea: String = "Analyzing big picture..."
@@ -40,6 +47,8 @@ struct CockpitView: View {
                 
                 habitsSection
                 
+                categoryBreakdownSection
+                
                 aiInsightsSection
                 
                 // Bottom Spacer
@@ -47,7 +56,7 @@ struct CockpitView: View {
             }
             .padding(.horizontal, 20)
         }
-        .background(Color.black.ignoresSafeArea())
+        .background(Color.lizhiBackground.ignoresSafeArea())
         .onAppear {
             financialEngine = FinancialEngine(modelContainer: modelContext.container)
             refreshData()
@@ -67,11 +76,11 @@ struct CockpitView: View {
                         Text("GOOD MORNING")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                             .kerning(1.0)
                         Text("Lizhi")
                             .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.lizhiTextPrimary)
                     }
                     Spacer()
                     
@@ -81,12 +90,12 @@ struct CockpitView: View {
                         triggerHaptic(.glassTap)
                     } label: {
                         Circle()
-                            .fill(Color(uiColor: .secondarySystemBackground))
+                            .fill(Color.lizhiSurface)
                             .frame(width: 44, height: 44)
                             .overlay {
                                 Image(systemName: "arrow.triangle.2.circlepath")
                                     .font(.headline)
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.lizhiTextPrimary)
                             }
                     }
                     
@@ -94,13 +103,13 @@ struct CockpitView: View {
                         showSettings = true
                     } label: {
                         Circle()
-                            .fill(Color(uiColor: .secondarySystemBackground))
+                            .fill(Color.lizhiSurface)
                             .frame(width: 44, height: 44)
                             .overlay {
                                 Text("L")
                                     .font(.headline)
                                     .fontWeight(.bold)
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.lizhiTextPrimary)
                             }
                     }
                 }
@@ -122,7 +131,7 @@ struct CockpitView: View {
                             moveDate(by: -1)
                         } label: {
                             Image(systemName: "chevron.left")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.lizhiTextSecondary)
                                 .padding(8)
                         }
                         
@@ -131,7 +140,7 @@ struct CockpitView: View {
                         Text(formatSelectedDate())
                             .font(.subheadline)
                             .fontWeight(.bold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.lizhiTextPrimary)
                             .onTapGesture {
                                 // Reset to Latest/Current on tap
                                 selectedDate = allTransactions.first?.date ?? Date()
@@ -145,11 +154,11 @@ struct CockpitView: View {
                             moveDate(by: 1)
                         } label: {
                             Image(systemName: "chevron.right")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color.lizhiTextSecondary)
                                 .padding(8)
                         }
                     }
-                    .background(Color(uiColor: .secondarySystemBackground))
+                    .background(Color.lizhiSurface)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
@@ -161,18 +170,18 @@ struct CockpitView: View {
     
     private var metricsSection: some View {
         HStack(spacing: 16) {
-            // Burn Card: Dark Red/Brown Gradient
+            // Burn Card
             MetricCard(
                 title: "Burn (\(displayMonth))",
                 value: totalBurn,
-                gradientColors: [Color(hex: "5A2D2D"), Color(hex: "2A1515")]
+                type: .burn
             )
             
-            // Income Card: Dark Teal/Green Gradient
+            // Income Card
             MetricCard(
                 title: "Income",
                 value: activeIncome,
-                gradientColors: [Color(hex: "1F4E4E"), Color(hex: "0F2626")]
+                type: .income
             )
         }
         .frame(height: 140) // Taller cards as per design
@@ -186,7 +195,7 @@ struct CockpitView: View {
                 Text("Spending Habits")
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.lizhiTextPrimary)
             }
             
             // Segmented Bar
@@ -213,9 +222,112 @@ struct CockpitView: View {
             }
         }
         .padding(24)
-        .background(Color(hex: "151515")) // Dark Gray BG
+        .background(Color.lizhiSurface) // Adaptive Surface
         .clipShape(RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.lizhiTextSecondary.opacity(0.1), lineWidth: 1))
+    }
+    
+    // Pie Chart Data Model
+    struct CategorySpend: Identifiable {
+        let id = UUID()
+        let category: String
+        let amount: Double
+        let color: Color
+    }
+    
+    // Color palette for subcategories
+    private let subcategoryColors: [Color] = [
+        Color(hex: "5D9CFF"), // Blue
+        Color(hex: "B589FF"), // Purple
+        Color(hex: "FF7EB3"), // Pink
+        Color(hex: "4ADE80"), // Green
+        Color(hex: "FBBF24"), // Yellow
+        Color(hex: "F97316"), // Orange
+        Color(hex: "06B6D4"), // Cyan
+        Color(hex: "EC4899"), // Magenta
+        Color(hex: "8B5CF6"), // Violet
+        Color(hex: "94A3B8"), // Slate (for "Other")
+    ]
+    
+    private var categoryData: [CategorySpend] {
+        // Sort by amount descending, limit to top 8 + "Other"
+        let sorted = subcategoryBreakdown.sorted { $0.value > $1.value }
+        var data: [CategorySpend] = []
+        var othersTotal: Double = 0
+        
+        for (index, item) in sorted.enumerated() {
+            if index < 8 {
+                let color = subcategoryColors[index % subcategoryColors.count]
+                data.append(CategorySpend(category: item.key, amount: item.value, color: color))
+            } else {
+                othersTotal += item.value
+            }
+        }
+        
+        // Add "Others" if there are more than 8 categories
+        if othersTotal > 0 {
+            data.append(CategorySpend(category: "Others", amount: othersTotal, color: subcategoryColors.last!))
+        }
+        
+        return data
+    }
+    
+    private var categoryBreakdownSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Image(systemName: "chart.pie.fill")
+                    .foregroundStyle(Color(hex: "FF7EB3"))
+                Text("Category Breakdown")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.lizhiTextPrimary)
+            }
+            
+            if categoryData.isEmpty {
+                Text("No spending data yet")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.lizhiTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 40)
+            } else {
+                HStack(alignment: .center, spacing: 24) {
+                    // Pie Chart
+                    Chart(categoryData) { item in
+                        SectorMark(
+                            angle: .value("Amount", item.amount),
+                            innerRadius: .ratio(0.5),
+                            angularInset: 2
+                        )
+                        .foregroundStyle(item.color)
+                        .cornerRadius(4)
+                    }
+                    .frame(width: 140, height: 140)
+                    
+                    // Legend with amounts
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(categoryData) { item in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(item.color)
+                                    .frame(width: 10, height: 10)
+                                Text(item.category)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.lizhiTextSecondary)
+                                Spacer()
+                                Text("\(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(Int(item.amount).formattedWithSeparator)")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.lizhiTextPrimary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .background(Color.lizhiSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.lizhiTextSecondary.opacity(0.1), lineWidth: 1))
     }
     
     private var aiInsightsSection: some View {
@@ -223,18 +335,18 @@ struct CockpitView: View {
             HStack {
                 Text("AI Insights")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.lizhiTextPrimary)
                 Spacer()
                 
                 if isLoadingAI {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Color.lizhiTextPrimary)
                 } else {
                     Button {
                         // Manual specific trigger
                         Task { await fetchAI(force: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.lizhiTextSecondary)
                             .font(.caption)
                     }
                 }
@@ -251,7 +363,7 @@ struct CockpitView: View {
                     isLoading: isLoadingAI
                 )
                 
-                Divider().background(Color.white.opacity(0.1))
+                Divider().background(Color.lizhiTextSecondary.opacity(0.2))
                 
                 // Insight 2: Tactical (Critical)
                 InsightRow(
@@ -262,19 +374,19 @@ struct CockpitView: View {
                     isLoading: isLoadingAI
                 )
                 
-                Divider().background(Color.white.opacity(0.1))
+                Divider().background(Color.lizhiTextSecondary.opacity(0.2))
                 
                 HStack {
                     Spacer()
                     Text("Based on \(allTransactions.count) records")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.lizhiTextSecondary)
                 }
             }
             .padding(24)
-            .background(Color(hex: "151515"))
+            .background(Color.lizhiSurface)
             .clipShape(RoundedRectangle(cornerRadius: 24))
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.1), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.lizhiTextSecondary.opacity(0.1), lineWidth: 1))
         }
     }
     
@@ -315,9 +427,30 @@ struct CockpitView: View {
                 }
             }
             
-            let survival = filteredTxs.filter { $0.category == .survival && $0.type == .expense }.reduce(0) { $0 + $1.amount }
-            let material = filteredTxs.filter { $0.category == .material && $0.type == .expense }.reduce(0) { $0 + $1.amount }
-            let experiential = filteredTxs.filter { $0.category == .experiential && $0.type == .expense }.reduce(0) { $0 + $1.amount }
+            let survival = filteredTxs.filter { $0.category == .survival && $0.type == .expense }.reduce(Decimal.zero) { $0 + CurrencyService.shared.convertToBase($1.amount, from: $1.currency) }
+            let material = filteredTxs.filter { $0.category == .material && $0.type == .expense }.reduce(Decimal.zero) { $0 + CurrencyService.shared.convertToBase($1.amount, from: $1.currency) }
+            let experiential = filteredTxs.filter { $0.category == .experiential && $0.type == .expense }.reduce(Decimal.zero) { $0 + CurrencyService.shared.convertToBase($1.amount, from: $1.currency) }
+            let investment = filteredTxs.filter { $0.category == .investment && $0.type == .expense }.reduce(Decimal.zero) { $0 + CurrencyService.shared.convertToBase($1.amount, from: $1.currency) }
+            let uncategorized = filteredTxs.filter { $0.category == .uncategorized && $0.type == .expense }.reduce(Decimal.zero) { $0 + CurrencyService.shared.convertToBase($1.amount, from: $1.currency) }
+            
+            // Calculate category breakdown for pie chart
+            // Lookup CategoryEntity by matching subcategory to find parent category name
+            var categoryTotals: [String: Double] = [:]
+            for tx in filteredTxs where tx.type == .expense {
+                let catName: String
+                // Try to find the parent CategoryEntity that contains this subcategory
+                if let parentCategory = categories.first(where: { $0.subcategories.contains(tx.subcategory) }) {
+                    catName = parentCategory.name
+                } else if !tx.categoryName.isEmpty {
+                    catName = tx.categoryName
+                } else if !tx.subcategory.isEmpty {
+                    catName = tx.subcategory // Fall back to subcategory as category name
+                } else {
+                    catName = "Other"
+                }
+                let amountInBase = CurrencyService.shared.convertToBase(tx.amount, from: tx.currency)
+                categoryTotals[catName, default: 0] += NSDecimalNumber(decimal: amountInBase).doubleValue
+            }
             
             withAnimation(.spring) {
                 // Update Title State
@@ -328,6 +461,9 @@ struct CockpitView: View {
                 self.survivalSpend = NSDecimalNumber(decimal: survival).doubleValue
                 self.materialSpend = NSDecimalNumber(decimal: material).doubleValue
                 self.experientialSpend = NSDecimalNumber(decimal: experiential).doubleValue
+                self.investmentSpend = NSDecimalNumber(decimal: investment).doubleValue
+                self.uncategorizedSpend = NSDecimalNumber(decimal: uncategorized).doubleValue
+                self.subcategoryBreakdown = categoryTotals
             }
             
             // AI Fetch Logic:
@@ -404,20 +540,47 @@ struct CockpitView: View {
 struct MetricCard: View {
     let title: String
     let value: Double
-    let gradientColors: [Color]
+    let type: MetricType
+    
+    enum MetricType {
+        case burn
+        case income
+    }
+    
+    @Environment(\.colorScheme) var colorScheme
+    
+    var gradientColors: [Color] {
+        switch type {
+        case .burn:
+            return colorScheme == .dark 
+                ? [Color(hex: "5A2D2D"), Color(hex: "2A1515")] 
+                : [Color(hex: "FFEBEE"), Color(hex: "FFCDD2")] // Soft Red in Light Mode
+        case .income:
+            return colorScheme == .dark 
+                ? [Color(hex: "1F4E4E"), Color(hex: "0F2626")] 
+                : [Color(hex: "E0F2F1"), Color(hex: "B2DFDB")] // Soft Teal in Light Mode
+        }
+    }
+    
+    var textColor: Color {
+        // High contrast for text. White for Dark Mode cards, Dark for Light Mode Pastel cards.
+        return colorScheme == .dark ? .white : .black
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.bold)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(textColor.opacity(0.8))
             
             Spacer()
             
             Text("$\(Int(value).formattedWithSeparator)")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -425,7 +588,7 @@ struct MetricCard: View {
             LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 28))
-        .overlay(RoundedRectangle(cornerRadius: 28).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05), lineWidth: 1))
     }
 }
 
@@ -439,7 +602,7 @@ struct LegendItem: View {
             Text(label)
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color.lizhiTextSecondary)
         }
     }
 }
@@ -467,7 +630,7 @@ struct InsightRow: View {
                 
                 Text(content)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(Color.lizhiTextPrimary.opacity(0.95))
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
                     .redacted(reason: isLoading ? .placeholder : [])

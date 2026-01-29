@@ -23,6 +23,7 @@ struct CSVImportService {
         var amountIndex = -1
         var currencyIndex = -1
         var noteIndex = -1
+        var linkedAccountIndex = -1
         
         var isHeader = true
         var rowIndex = 1 // 1-based for errors
@@ -42,6 +43,8 @@ struct CSVImportService {
                 amountIndex = headers.firstIndex(where: { $0.contains("amount") || $0.contains("value") }) ?? -1
                 currencyIndex = headers.firstIndex(where: { $0.contains("cur") }) ?? -1
                 noteIndex = headers.firstIndex(where: { $0.contains("note") || $0.contains("desc") }) ?? -1
+                // New: Linked Account Parsing
+                linkedAccountIndex = headers.firstIndex(where: { $0.contains("linked") || $0.contains("account") }) ?? -1
                 
                 isHeader = false
             } else {
@@ -75,14 +78,19 @@ struct CSVImportService {
                      else if rawType.contains("asset") { type = .assetPurchase }
                      else { type = .expense }
                      
-                     // 5. Category
-                     let rawCat = col(categoryIndex) ?? ""
-                     let category = mapCategory(rawCat)
+                     // 5. Category (from CSV column - e.g. "Food", "Transport")
+                     let categoryName = col(categoryIndex) ?? ""
+                     let engineMap = mapCategory(categoryName)
                      
                      // 6. Subcategory & Note & Currency
                      let subcategory = col(subIndex) ?? ""
                      let currency = col(currencyIndex) ?? "AUD"
                      let note = col(noteIndex) ?? ""
+                     
+                     // 7. Linked Account (New)
+                     let linkedAccountID = col(linkedAccountIndex) ?? nil
+                     // Filter out empty strings if mapped to nil
+                     let finalLinkedID = (linkedAccountID?.isEmpty ?? true) ? nil : linkedAccountID
                      
                      var contextTags: [String] = []
                      if !note.isEmpty { contextTags.append(note) }
@@ -91,11 +99,13 @@ struct CSVImportService {
                          id: stableID,
                          amount: amount,
                          type: type,
-                         category: category,
-                         source: .spending, // Default
+                         category: engineMap,
+                         source: .spending,
                          date: date,
                          contextTags: contextTags,
+                         categoryName: categoryName, // Store original category for pie chart
                          subcategory: subcategory,
+                         linkedAccountID: finalLinkedID,
                          currency: currency
                      )
                      transactions.append(tx)

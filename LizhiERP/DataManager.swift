@@ -6,41 +6,60 @@ class DataManager {
     static let shared = DataManager()
     
     func seedCategories(context: ModelContext) {
-        // Check if categories exist
+        // Combined Target Structure (User Request + Original Defaults)
+        let targets: [(name: String, icon: String, type: TransactionType, map: TransactionCategory, subs: [String])] = [
+            // Expenses (Merged)
+            ("Travel", "airplane", .expense, .experiential, ["General", "Flights", "Hotel", "Activity", "Visa"]),
+            ("Entertainment", "gamecontroller.fill", .expense, .experiential, ["Music", "Activity", "Streaming", "Games", "Movies", "Events"]),
+            ("Food", "fork.knife", .expense, .survival, ["Groceries", "Delivery", "Solo Meal", "Drink", "Dessert", "Snacks", "Dining Out"]),
+            ("Bills", "doc.text.fill", .expense, .survival, ["Subscription", "Phone", "Internet", "Electricity", "Water", "Council"]),
+            ("Shopping", "bag.fill", .expense, .material, ["Electronics", "Home", "Clothing", "Gifts", "Beauty"]),
+            ("Transport", "car.fill", .expense, .survival, ["Public Transport", "Fuel", "Parking", "Ride", "Maintenance"]),
+            ("Health", "heart.fill", .expense, .survival, ["Pharmacy", "Gym", "Consult", "Optical", "Personal Care", "Equipment", "Insurance"]),
+            ("Study", "book.fill", .expense, .investment, ["Software", "Space", "Consumables", "Course", "Books", "Tuition"]),
+            
+            // Income (Original Defaults)
+            ("Paycheck", "dollarsign.circle.fill", .income, .survival, ["Main Job", "Bonus", "Overtime"]),
+            ("Hustle", "bolt.fill", .income, .investment, ["Freelance", "Consulting", "Side Project", "Sales", "Platform"]),
+            ("Investment", "chart.line.uptrend.xyaxis", .income, .investment, ["Dividends", "Interest", "Real Estate", "Crypto"]),
+            ("Grants", "graduationcap.fill", .income, .investment, ["Scholarship","Grants","Stipend"]),
+            ("Allowance", "gift.fill", .income, .uncategorized, ["Government", "Red Packet", "Parental","Other"])
+        ]
+        
         let descriptor = FetchDescriptor<CategoryEntity>()
         let existing = (try? context.fetch(descriptor)) ?? []
         
-        if !existing.isEmpty { return } // Already seeded
-        
-        // Seed Expense Defaults
-        let expenseDefaults: [CategoryEntity] = [
-            CategoryEntity(name: "Food", icon: "fork.knife", type: .expense, mappedCategory: .survival, subcategories: ["Groceries", "Dining Out", "Snacks", "Coffee", "Delivery"], sortOrder: 0),
-            CategoryEntity(name: "Installments", icon: "arrow.triangle.2.circlepath", type: .expense, mappedCategory: .survival, subcategories: ["Zip", "Afterpay", "PayPal", "Loan", "Klarna"], sortOrder: 1),
-            CategoryEntity(name: "Transport", icon: "car.fill", type: .expense, mappedCategory: .survival, subcategories: ["Fuel", "Uber/Taxi", "Public Transport", "Parking", "Maintenance"], sortOrder: 2),
-            CategoryEntity(name: "Shopping", icon: "bag.fill", type: .expense, mappedCategory: .material, subcategories: ["Clothing", "Electronics", "Home", "Gifts", "Beauty"], sortOrder: 3),
-            CategoryEntity(name: "Study", icon: "book.fill", type: .expense, mappedCategory: .investment, subcategories: ["Course", "Books", "Software", "Tuition"], sortOrder: 4),
-            CategoryEntity(name: "Travel", icon: "airplane", type: .expense, mappedCategory: .experiential, subcategories: ["Flights", "Hotel", "Activity", "Visa"], sortOrder: 5),
-            CategoryEntity(name: "Bills", icon: "doc.text.fill", type: .expense, mappedCategory: .survival, subcategories: ["Phone", "Internet", "Electricity", "Water", "Council"], sortOrder: 6),
-            CategoryEntity(name: "Entmt", icon: "gamecontroller.fill", type: .expense, mappedCategory: .experiential, subcategories: ["Games", "Movies", "Events", "Streaming"], sortOrder: 7),
-            CategoryEntity(name: "Health", icon: "heart.fill", type: .expense, mappedCategory: .survival, subcategories: ["Doctor", "Pharmacy", "Gym", "Insurance"], sortOrder: 8)
-        ]
-        
-        // Seed Income Defaults
-        let incomeDefaults: [CategoryEntity] = [
-            CategoryEntity(name: "Paycheck", icon: "dollarsign.circle.fill", type: .income, mappedCategory: .survival, subcategories: ["Main Job", "Bonus", "Overtime"], sortOrder: 0),
-            CategoryEntity(name: "Hustle", icon: "bolt.fill", type: .income, mappedCategory: .investment, subcategories: ["Freelance", "Consulting", "Side Project", "Sales"], sortOrder: 1),
-            CategoryEntity(name: "Investment", icon: "chart.line.uptrend.xyaxis", type: .income, mappedCategory: .investment, subcategories: ["Dividends", "Interest", "Real Estate", "Crypto"], sortOrder: 2),
-            CategoryEntity(name: "Gift", icon: "gift.fill", type: .income, mappedCategory: .uncategorized, subcategories: ["Birthday", "Red Packet", "Other"], sortOrder: 3)
-        ]
-        
-        for cat in expenseDefaults + incomeDefaults {
-            context.insert(cat)
+        for target in targets {
+            // Match by Name AND Type
+            if let match = existing.first(where: { $0.name == target.name && $0.type == target.type.rawValue }) {
+                // Category exists, check subcategories
+                var updated = false
+                for sub in target.subs {
+                    if !match.subcategories.contains(sub) {
+                        match.subcategories.append(sub)
+                        updated = true
+                    }
+                }
+                if updated { print("DataManager: Updated subcategories for \(target.name)") }
+            } else {
+                // Create new category
+                let newCat = CategoryEntity(
+                    name: target.name,
+                    icon: target.icon,
+                    type: target.type,
+                    mappedCategory: target.map,
+                    subcategories: target.subs,
+                    sortOrder: 10 + existing.count // Append to end
+                )
+                context.insert(newCat)
+                print("DataManager: Created missing category \(target.name)")
+            }
         }
         
-        // Save
         try? context.save()
-        print("DataManager: Categories seeded.")
+        print("DataManager: Categories seeded/ensured.")
     }
+    
     func resetCategories(context: ModelContext) {
         do {
              // Delete all existing

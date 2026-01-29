@@ -26,6 +26,7 @@ final class PhysicalAsset: Codable {
     
     // Icon
     var icon: String // SF Symbol
+    var currency: String = "AUD"
     
     // Computed: Days Owned
     var daysOwned: Int {
@@ -51,7 +52,7 @@ final class PhysicalAsset: Codable {
         return totalCost / days
     }
     
-    init(id: UUID = UUID(), name: String, purchaseValue: Decimal, purchaseDate: Date, category: String = "General", status: PhysicalAssetStatus = .active, isInsured: Bool = false, insuranceCostYearly: Decimal = 0, icon: String = "cube.box.fill") {
+    init(id: UUID = UUID(), name: String, purchaseValue: Decimal, purchaseDate: Date, category: String = "General", status: PhysicalAssetStatus = .active, isInsured: Bool = false, insuranceCostYearly: Decimal = 0, icon: String = "cube.box.fill", currency: String = "AUD") {
         self.id = id
         self.name = name
         self.purchaseValue = purchaseValue
@@ -61,11 +62,12 @@ final class PhysicalAsset: Codable {
         self.isInsured = isInsured
         self.insuranceCostYearly = insuranceCostYearly
         self.icon = icon
+        self.currency = currency
     }
     
     // Codable implementation
     enum CodingKeys: String, CodingKey {
-        case id, name, purchaseValue, purchaseDate, category, status, retiredDate, isInsured, insuranceCostYearly, icon
+        case id, name, purchaseValue, purchaseDate, category, status, retiredDate, isInsured, insuranceCostYearly, icon, currency
     }
     
     required init(from decoder: Decoder) throws {
@@ -80,6 +82,7 @@ final class PhysicalAsset: Codable {
         isInsured = try container.decode(Bool.self, forKey: .isInsured)
         insuranceCostYearly = try container.decode(Decimal.self, forKey: .insuranceCostYearly)
         icon = try container.decode(String.self, forKey: .icon)
+        currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "AUD"
     }
     
     func encode(to encoder: Encoder) throws {
@@ -94,5 +97,6 @@ final class PhysicalAsset: Codable {
         try container.encode(isInsured, forKey: .isInsured)
         try container.encode(insuranceCostYearly, forKey: .insuranceCostYearly)
         try container.encode(icon, forKey: .icon)
+        try container.encode(currency, forKey: .currency)
     }
 }

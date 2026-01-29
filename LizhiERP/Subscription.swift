@@ -12,8 +12,9 @@ final class Subscription {
     var isActive: Bool
     var notes: String
     var paymentMethod: String // "Card", "PayPal"
+    var currency: String = "AUD"
     
-    init(name: String, amount: Decimal, cycle: String = "Monthly", firstBillDate: Date = Date(), icon: String = "tv", isActive: Bool = true, notes: String = "", paymentMethod: String = "Card") {
+    init(name: String, amount: Decimal, cycle: String = "Monthly", firstBillDate: Date = Date(), icon: String = "tv", isActive: Bool = true, notes: String = "", paymentMethod: String = "Card", currency: String = "AUD") {
         self.id = UUID()
         self.name = name
         self.amount = amount
@@ -23,6 +24,7 @@ final class Subscription {
         self.isActive = isActive
         self.notes = notes
         self.paymentMethod = paymentMethod
+        self.currency = currency
     }
     
     // Logic to calculate monthly equivalent cost

@@ -42,7 +42,7 @@ struct FloatingPill: View {
                             
                             if selectedTab == tab {
                                 Circle()
-                                    .fill(.white)
+                                    .fill(Color.primary) // Adaptive Dot
                                     .frame(width: 4, height: 4)
                                     .matchedGeometryEffect(id: "TabDot", in: animation)
                             } else {
@@ -51,7 +51,7 @@ struct FloatingPill: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .foregroundStyle(selectedTab == tab ? .white : .white.opacity(0.5))
+                        .foregroundStyle(selectedTab == tab ? Color.primary : Color.secondary)
                     }
                 }
             }
