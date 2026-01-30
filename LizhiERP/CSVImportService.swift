@@ -24,6 +24,12 @@ struct CSVImportService {
         var currencyIndex = -1
         var noteIndex = -1
         var linkedAccountIndex = -1
+        var sourceAccountIndex = -1
+        var destAccountIndex = -1
+        var feesIndex = -1
+        var targetAssetIndex = -1
+        var unitsIndex = -1
+        var priceIndex = -1
         
         var isHeader = true
         var rowIndex = 1 // 1-based for errors
@@ -35,6 +41,8 @@ struct CSVImportService {
             if isHeader {
                 headers = line.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 
+
+                
                 idIndex = headers.firstIndex(where: { $0.contains("id") }) ?? -1
                 dateIndex = headers.firstIndex(where: { $0.contains("date") || $0.contains("time") }) ?? -1
                 typeIndex = headers.firstIndex(where: { $0.contains("type") }) ?? -1
@@ -43,8 +51,17 @@ struct CSVImportService {
                 amountIndex = headers.firstIndex(where: { $0.contains("amount") || $0.contains("value") }) ?? -1
                 currencyIndex = headers.firstIndex(where: { $0.contains("cur") }) ?? -1
                 noteIndex = headers.firstIndex(where: { $0.contains("note") || $0.contains("desc") }) ?? -1
-                // New: Linked Account Parsing
-                linkedAccountIndex = headers.firstIndex(where: { $0.contains("linked") || $0.contains("account") }) ?? -1
+                
+                // New Columns
+                sourceAccountIndex = headers.firstIndex(where: { $0.contains("source") && $0.contains("account") }) ?? -1
+                destAccountIndex = headers.firstIndex(where: { $0.contains("dest") && $0.contains("account") }) ?? -1
+                feesIndex = headers.firstIndex(where: { $0.contains("fees") }) ?? -1
+                targetAssetIndex = headers.firstIndex(where: { $0.contains("target") && $0.contains("asset") }) ?? -1
+                unitsIndex = headers.firstIndex(where: { $0.contains("unit") && !$0.contains("price") }) ?? -1 // "Units" but not "PricePerUnit"
+                priceIndex = headers.firstIndex(where: { $0.contains("price") }) ?? -1
+                
+                // Legacy support
+                linkedAccountIndex = headers.firstIndex(where: { $0.contains("linked") && !$0.contains("account") == false }) ?? -1
                 
                 isHeader = false
             } else {
@@ -70,31 +87,76 @@ struct CSVImportService {
                 if let amountDouble = Double(rawAmount) {
                      let amount = Decimal(amountDouble)
                      
-                     // 4. Resolve Type
-                     let rawType = col(typeIndex)?.lowercased() ?? ""
-                     let type: TransactionType
-                     if rawType.contains("income") { type = .income }
-                     else if rawType.contains("transfer") { type = .transfer }
-                     else if rawType.contains("asset") { type = .assetPurchase }
-                     else { type = .expense }
+                // 4. Resolve Type & Category Logic
+                let rawType = col(typeIndex)?.lowercased() ?? ""
+                let categoryName = col(categoryIndex) ?? ""
+                let subcategory = col(subIndex) ?? ""
+                
+                var type: TransactionType
+                
+                // Enhanced Type Inference based on User Requirement
+                if categoryName.localizedCaseInsensitiveContains("transfer") || subcategory.localizedCaseInsensitiveContains("transfer") {
+                    type = .transfer
+                } else if categoryName.localizedCaseInsensitiveContains("stock") || categoryName.localizedCaseInsensitiveContains("crypto") || subcategory.localizedCaseInsensitiveContains("buy") || subcategory.localizedCaseInsensitiveContains("sell") {
+                    // Assume asset purchase if context implies investment
+                    type = .assetPurchase
+                } else {
+                    // Fallback to Type column
+                    if rawType.contains("income") { type = .income }
+                    else if rawType.contains("transfer") { type = .transfer }
+                    else if rawType.contains("asset") { type = .assetPurchase }
+                    else { type = .expense }
+                }
+
+                // 5. Category Map
+                let engineMap = mapCategory(categoryName)
+                
+                // 6. Currency & Note
+                let currency = col(currencyIndex) ?? "AUD"
+                let note = col(noteIndex) ?? ""
+                
+                var contextTags: [String] = []
+                if !note.isEmpty { contextTags.append(note) }
+                
+                // 7. Resolving Accounts & Investment Data
+                var linkedID: String? = nil
+                var destID: String? = nil
+                var targetAsset: UUID? = nil
+                
+                let sourceCol = col(sourceAccountIndex) ?? col(linkedAccountIndex) // Source = Money Out (e.g. Westpac)
+                let destCol = col(destAccountIndex) // Destination = Money In / Asset Acquired
+                let targetAssetCol = col(targetAssetIndex)
+                
+                if type == .assetPurchase {
+                    // Mapping per User Request:
+                    // Source Account = Payment Account (Money Source)
+                    // Destination Account = TargetAssetID (The Asset bought)
+                    
+                    if let payString = sourceCol, !payString.isEmpty {
+                        linkedID = payString
+                    }
+                    
+                    if let assetString = destCol, !assetString.isEmpty {
+                        targetAsset = UUID(uuidString: assetString)
+                    } else if let explicitTarget = targetAssetCol, !explicitTarget.isEmpty {
+                         // Fallback to targetAssetID column if dest is empty
+                         targetAsset = UUID(uuidString: explicitTarget)
+                    }
+                } else {
+                    // Standard Mapping: Source = Money Source, Dest = Money Destination
+                    if let s = sourceCol, !s.isEmpty { linkedID = s }
+                    if let d = destCol, !d.isEmpty { destID = d }
+                }
                      
-                     // 5. Category (from CSV column - e.g. "Food", "Transport")
-                     let categoryName = col(categoryIndex) ?? ""
-                     let engineMap = mapCategory(categoryName)
+                     // 8. Investment Metrics
+                     var fees: Decimal? = nil
+                     var units: Decimal? = nil
+                     var price: Decimal? = nil
                      
-                     // 6. Subcategory & Note & Currency
-                     let subcategory = col(subIndex) ?? ""
-                     let currency = col(currencyIndex) ?? "AUD"
-                     let note = col(noteIndex) ?? ""
-                     
-                     // 7. Linked Account (New)
-                     let linkedAccountID = col(linkedAccountIndex) ?? nil
-                     // Filter out empty strings if mapped to nil
-                     let finalLinkedID = (linkedAccountID?.isEmpty ?? true) ? nil : linkedAccountID
-                     
-                     var contextTags: [String] = []
-                     if !note.isEmpty { contextTags.append(note) }
-                     
+                     if let f = col(feesIndex), let d = Double(f) { fees = Decimal(d) }
+                     if let u = col(unitsIndex), let d = Double(u) { units = Decimal(d) }
+                     if let p = col(priceIndex), let d = Double(p) { price = Decimal(d) }
+
                      let tx = Transaction(
                          id: stableID,
                          amount: amount,
@@ -103,10 +165,15 @@ struct CSVImportService {
                          source: .spending,
                          date: date,
                          contextTags: contextTags,
-                         categoryName: categoryName, // Store original category for pie chart
+                         categoryName: categoryName,
                          subcategory: subcategory,
-                         linkedAccountID: finalLinkedID,
-                         currency: currency
+                         linkedAccountID: linkedID,
+                         currency: currency,
+                         destinationAccountID: destID,
+                         targetAssetID: targetAsset,
+                         units: units,
+                         pricePerUnit: price,
+                         fees: fees
                      )
                      transactions.append(tx)
                 } else {

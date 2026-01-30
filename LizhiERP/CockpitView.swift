@@ -31,6 +31,7 @@ struct CockpitView: View {
     
     @State private var isLoadingAI: Bool = false
     @State private var showSettings = false
+    @State private var showDatePicker = false
     
     // UI State
     @State private var displayMonth: String = "This Month"
@@ -62,6 +63,9 @@ struct CockpitView: View {
             refreshData()
         }
         .onChange(of: allTransactions) { _, _ in
+            refreshData()
+        }
+        .onChange(of: selectedDate) { _, _ in
             refreshData()
         }
     }
@@ -142,9 +146,7 @@ struct CockpitView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(Color.lizhiTextPrimary)
                             .onTapGesture {
-                                // Reset to Latest/Current on tap
-                                selectedDate = allTransactions.first?.date ?? Date()
-                                refreshData()
+                                showDatePicker = true
                                 triggerHaptic(.glassTap)
                             }
                         
@@ -165,6 +167,10 @@ struct CockpitView: View {
         .padding(.horizontal)
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showDatePicker) {
+            MonthYearPickerView(selectedDate: $selectedDate, isPresented: $showDatePicker)
+                .presentationDetents([.fraction(0.4)])
         }
     }
     

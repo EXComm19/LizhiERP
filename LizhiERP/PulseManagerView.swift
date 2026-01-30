@@ -5,6 +5,7 @@ struct PulseManagerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var subscriptions: [Subscription]
+    @Query private var categories: [CategoryEntity]
     
     @State private var selectedSubscription: Subscription?
     @State private var showEditor = false
@@ -17,58 +18,64 @@ struct PulseManagerView: View {
             Color.lizhiBackground.ignoresSafeArea()
             
             VStack(alignment: .leading, spacing: 0) {
-                // Header: PULSE MANAGER + Back Button
+                // Header: Large Bold Title (Left Aligned) - Consistent with other pages
                 HStack {
-                    Button {
-                        dismiss()
-                        triggerHaptic(.glassTap)
-                    } label: {
-                        Image(systemName: "arrow.left.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(Color.lizhiTextPrimary)
-                    }
-                    
-                    Spacer()
-                    
-                    Text("PULSE MANAGER")
-                        .font(.caption)
+                    Text("Fixed Costs")
+                        .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundStyle(Color.lizhiTextSecondary)
+                        .foregroundStyle(Color.lizhiTextPrimary)
                     
                     Spacer()
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
                 
-                // Large Title
-                Text("Fixed Costs")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.lizhiTextPrimary)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                
-                // Calendar Strip
-                HStack(spacing: 12) {
+                // Calendar Strip - Shows upcoming subscription due dates
+                HStack(spacing: 8) {
                     ForEach(days, id: \.self) { day in
-                        VStack(spacing: 4) {
+                        let dueCount = subscriptionsDue(on: day).count
+                        let isToday = Calendar.current.isDateInToday(day)
+                        
+                        VStack(spacing: 6) {
                             Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                                .font(.caption)
+                                .font(.caption2)
                                 .fontWeight(.medium)
                                 .foregroundStyle(Color.lizhiTextSecondary)
                             
-                            Text(day.formatted(.dateTime.day()))
-                                .font(.title3)
-                                .fontWeight(Calendar.current.isDateInToday(day) ? .bold : .regular)
-                                .foregroundStyle(Calendar.current.isDateInToday(day) ? Color.white : Color.lizhiTextPrimary)
+                            ZStack {
+                                Text(day.formatted(.dateTime.day()))
+                                    .font(.title3)
+                                    .fontWeight(isToday ? .bold : .regular)
+                                    .foregroundStyle(isToday ? Color.white : Color.lizhiTextPrimary)
+                            }
+                            
+                            // Subscription due indicator
+                            if dueCount > 0 {
+                                HStack(spacing: 2) {
+                                    Circle()
+                                        .fill(dueCount > 0 ? Color.orange : Color.clear)
+                                        .frame(width: 6, height: 6)
+                                    if dueCount > 1 {
+                                        Text("+\(dueCount - 1)")
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundStyle(Color.orange)
+                                    }
+                                }
+                            } else {
+                                Color.clear.frame(height: 6)
+                            }
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 10)
                         .background(
-                            Calendar.current.isDateInToday(day) ?
-                            Color.blue : Color.lizhiSurface
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(isToday ? Color.blue : Color.lizhiSurface)
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(dueCount > 0 && !isToday ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                        )
                     }
                 }
                 .padding(.horizontal, 20)
@@ -102,7 +109,7 @@ struct PulseManagerView: View {
                 }
                 
                 // Section Header
-                Text("ACTIVE SUBSCRIPTIONS")
+                Text("RECURRING TRANSACTIONS")
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.lizhiTextSecondary)
@@ -114,12 +121,32 @@ struct PulseManagerView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(subscriptions) { sub in
-                            SubscriptionRow(sub: sub)
+                            SubscriptionRow(sub: sub, categories: categories)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedSubscription = sub
                                     showEditor = true
                                     triggerHaptic(.glassTap)
+                                }
+                                .contextMenu {
+                                    Button {
+                                        triggerSubscriptionNow(sub)
+                                    } label: {
+                                        Label("Trigger Now (Test)", systemImage: "play.circle.fill")
+                                    }
+                                    
+                                    Button {
+                                        selectedSubscription = sub
+                                        showEditor = true
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    
+                                    Button(role: .destructive) {
+                                        deleteSubscription(sub)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                         }
                         
@@ -146,70 +173,7 @@ struct PulseManagerView: View {
                     .padding(.horizontal, 20)
                 }
                 
-                Spacer()
-            }
-            
-            // Bottom Toolbar
-            VStack {
-                Spacer()
-                
-                HStack(spacing: 40) {
-                    Button {
-                        // Refresh/Sync
-                        let engine = FinancialEngine(modelContainer: modelContext.container)
-                        Task { @MainActor in
-                            await engine.processSubscriptions()
-                        }
-                        triggerHaptic(.glassTap)
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.title2)
-                            .foregroundStyle(Color.lizhiTextPrimary)
-                    }
-                    
-                    Button {
-                        // Archive/Manage
-                        triggerHaptic(.glassTap)
-                    } label: {
-                        Image(systemName: "archivebox")
-                            .font(.title2)
-                            .foregroundStyle(Color.lizhiTextPrimary)
-                    }
-                    
-                    Button {
-                        // Layers/Categories
-                        triggerHaptic(.glassTap)
-                    } label: {
-                        Image(systemName: "square.stack.3d.up")
-                            .font(.title2)
-                            .foregroundStyle(Color.lizhiTextPrimary)
-                    }
-                    
-                    Button {
-                        selectedSubscription = nil
-                        showEditor = true
-                        triggerHaptic(.glassTap)
-                    } label: {
-                        Circle()
-                            .fill(Color.lizhiTextPrimary)
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(Color.lizhiBackground)
-                            )
-                    }
-                }
-                .padding()
-                .background(
-                    Color.lizhiSurface
-                        .overlay(.ultraThinMaterial)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 30))
-                .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                Spacer().frame(height: 100)
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -228,7 +192,7 @@ struct PulseManagerView: View {
     // Check if any subscription is overdue
     var hasGhostCharge: Bool {
         subscriptions.contains { sub in
-            sub.firstBillDate < Date().addingTimeInterval(-86400 * 2) // 2 days ago
+            sub.nextPaymentDate < Date().addingTimeInterval(-86400 * 2) // 2 days ago
         }
     }
     
@@ -239,26 +203,74 @@ struct PulseManagerView: View {
         }
     }
     
+    /// Find subscriptions due on a specific date
+    func subscriptionsDue(on date: Date) -> [Subscription] {
+        let calendar = Calendar.current
+        return subscriptions.filter { sub in
+            // Check if the subscription's due date falls on this day
+            calendar.isDate(sub.nextPaymentDate, inSameDayAs: date)
+        }
+    }
+    
     func deleteSubscription(_ sub: Subscription) {
         modelContext.delete(sub)
         triggerHaptic(.glassTap)
+    }
+    
+    /// Test trigger: Creates a transaction from this subscription immediately (for testing)
+    func triggerSubscriptionNow(_ sub: Subscription) {
+        // Create a Transaction from the subscription (like processSubscriptions does)
+        let tx = Transaction(
+            amount: sub.amount,
+            type: sub.type,
+            category: sub.category,
+            source: .spending,
+            date: Date(),  // Use current date for test
+            contextTags: [sub.name, "Test Trigger"],
+            categoryName: sub.categoryName,
+            subcategory: sub.subcategory,
+            linkedAccountID: sub.linkedAccountID,
+            currency: sub.currency
+        )
+        modelContext.insert(tx)
+        
+        do {
+            try modelContext.save()
+            triggerHaptic(.hustle)
+            print("DEBUG: Test triggered subscription '\(sub.name)' - Transaction created")
+        } catch {
+            print("DEBUG: Failed to save test transaction: \(error)")
+        }
     }
 }
 
 struct SubscriptionRow: View {
     let sub: Subscription
+    let categories: [CategoryEntity]
+    
+    // Find icon from category
+    var categoryIcon: String {
+        if let cat = categories.first(where: { $0.name == sub.categoryName }) {
+            return cat.icon
+        }
+        return sub.type == .income ? "arrow.up.circle.fill" : "arrow.down.circle.fill"
+    }
+    
+    // Color based on type
+    var typeColor: Color {
+        sub.type == .income ? Color.green : Color.orange
+    }
     
     var body: some View {
         HStack(spacing: 16) {
-            // Circle with first letter
+            // Circle with category icon
             Circle()
-                .fill(Color.white)
+                .fill(typeColor.opacity(0.2))
                 .frame(width: 48, height: 48)
                 .overlay(
-                    Text(String(sub.name.prefix(1)).uppercased())
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.black)
+                    Image(systemName: categoryIcon)
+                        .font(.title3)
+                        .foregroundStyle(typeColor)
                 )
             
             VStack(alignment: .leading, spacing: 4) {
@@ -267,23 +279,23 @@ struct SubscriptionRow: View {
                     .fontWeight(.bold)
                     .foregroundStyle(Color.lizhiTextPrimary)
                 
-                // Cycle • Next: date
-                Text("\(sub.cycle.capitalized) • Next: \(sub.firstBillDate.formatted(.dateTime.year().month().day()))")
+                // Category • Cycle • Next: date
+                Text("\(sub.categoryName) • \(sub.cycle) • Next: \(sub.effectiveNextDate.formatted(.dateTime.month(.abbreviated).day()))")
                     .font(.caption)
                     .foregroundStyle(Color.lizhiTextSecondary)
             }
             
             Spacer()
             
-            // Price
-            Text("\(CurrencyService.shared.symbol(for: sub.currency))\(String(format: "%.2f", Double(truncating: sub.amount as NSNumber)))")
+            // Price with +/- indicator
+            Text("\(sub.type == .income ? "+" : "-")\(CurrencyService.shared.symbol(for: sub.currency))\(String(format: "%.2f", Double(truncating: sub.amount as NSNumber)))")
                 .font(.title3)
                 .fontWeight(.bold)
-                .foregroundStyle(Color.lizhiTextPrimary)
+                .foregroundStyle(typeColor)
         }
         .padding()
         .background(Color.lizhiSurface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.lizhiTextSecondary.opacity(0.1), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(typeColor.opacity(0.2), lineWidth: 1))
     }
 }

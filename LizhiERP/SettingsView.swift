@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var transactions: [Transaction]
+    @Query private var assets: [AssetEntity]
     
     @State private var showFileImporter = false
     @State private var showShareSheet = false
@@ -172,15 +173,25 @@ struct SettingsView: View {
     }
 
     func exportData() {
-        let csv = CSVExportService.generateCSV(from: transactions)
+        let csv = CSVExportService.generateCSV(from: transactions, assets: assets)
         let fileName = "LizhiERP_Export_\(Date().formatted(date: .numeric, time: .omitted).replacingOccurrences(of: "/", with: "-")).csv"
         
         if let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fileURL = path.appendingPathComponent(fileName)
             do {
-                try csv.write(to: fileURL, atomically: true, encoding: .utf8)
-                exportURL = fileURL
-                showShareSheet = true
+                // Excel for Mac doesn't auto-detect UTF-8, it needs a BOM to recognize it
+                // Numbers works fine without BOM, but Excel requires it
+                let bom = Data([0xEF, 0xBB, 0xBF]) // UTF-8 BOM
+                var fileData = bom
+                
+                if let csvData = csv.data(using: .utf8) {
+                    fileData.append(csvData)
+                    try fileData.write(to: fileURL, options: .atomic)
+                    exportURL = fileURL
+                    showShareSheet = true
+                } else {
+                    print("Failed to encode CSV string to UTF-8")
+                }
             } catch {
                 print("Export failed: \(error)")
             }
@@ -232,6 +243,11 @@ struct SettingsView: View {
                     content = try String(contentsOf: tempFile)
                 }
                 
+                // Strip UTF-8 BOM if present (important for round-trip with our export)
+                if content.hasPrefix("\u{FEFF}") {
+                    content = String(content.dropFirst())
+                }
+                
                 // Parsing phase status
                 await MainActor.run { importProgress = 0.1 }
                 
@@ -262,6 +278,11 @@ struct SettingsView: View {
                         }
                         
                         try? modelContext.save() // Ensure data is persisted for background access
+                        
+                        // Recalculate asset balances after import
+                        let container = modelContext.container
+                        let engine = FinancialEngine(modelContainer: container)
+                        await engine.recalculateAssetBalances()
                         
                         importMessage = "Imported \(result.transactions.count) records.\nErrors: \(result.errors.count)"
                         showImportAlert = true

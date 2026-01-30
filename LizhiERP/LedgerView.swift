@@ -199,8 +199,8 @@ struct LedgerView: View {
                                 TransactionRow(tx: tx, categories: categories)
                                     .contentShape(Rectangle())
                                     .onTapGesture {
+                                        // FIX: Simply set the selected item. No boolean toggle needed.
                                         selectedTransaction = tx
-                                        showEditor = true
                                         triggerHaptic(.glassTap)
                                     }
                                     .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
@@ -238,14 +238,20 @@ struct LedgerView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .sheet(isPresented: $showEditor) {
-            ManualTransactionView(isPresented: $showEditor, transactionToEdit: selectedTransaction)
-                .id(selectedTransaction?.id ?? UUID()) // Force refresh on selection change
+        // FIX: Use .sheet(item:) instead of .sheet(isPresented:)
+        // This ensures the sheet is ONLY created when selectedTransaction is non-nil.
+        .sheet(item: $selectedTransaction) { tx in
+            ManualTransactionView(
+                isPresented: Binding(
+                    get: { selectedTransaction != nil },
+                    set: { if !$0 { selectedTransaction = nil } }
+                ),
+                transactionToEdit: tx
+            )
         }
         .sheet(isPresented: $showDatePicker) {
-             DatePicker("Select Month", selection: $displayDate, displayedComponents: [.date])
-                 .datePickerStyle(.graphical)
-                 .presentationDetents([.medium])
+            MonthYearPickerView(selectedDate: $displayDate, isPresented: $showDatePicker)
+                .presentationDetents([.fraction(0.4)])
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText], allowsMultipleSelection: false) { result in
             switch result {
@@ -296,8 +302,8 @@ struct LedgerView: View {
     @State private var importProgress: Double = 0.0
     
     // Editing
+    // FIX: Removed 'showEditor' bool. We now rely solely on selectedTransaction being non-nil.
     @State private var selectedTransaction: Transaction? = nil
-    @State private var showEditor = false
 
     var isFilterActive: Bool {
         selectedType != nil || selectedCategory != nil
@@ -525,9 +531,9 @@ struct TransactionRow: View {
     var primaryLabel: String {
         switch tx.type {
         case .transfer:
-            // Show "FROM → TO"
-            let from = tx.linkedAccountID ?? "Unknown"
-            let to = tx.destinationAccountID ?? "Unknown"
+            // Show "FROM → TO" using asset names
+            let from = assetName(for: tx.linkedAccountID) ?? tx.linkedAccountID ?? "Unknown"
+            let to = assetName(for: tx.destinationAccountID) ?? tx.destinationAccountID ?? "Unknown"
             return "\(from) → \(to)"
             
         case .assetPurchase:
@@ -551,13 +557,22 @@ struct TransactionRow: View {
             return tx.contextTags.joined(separator: " • ")
             
         case .assetPurchase:
-            // Show "FROM [account], [units] units"
+            // Show "FROM [account name], [units] units @ $[price]"
             var parts: [String] = []
             if let from = tx.linkedAccountID {
-                parts.append("FROM \(from)")
+                let fromName = assetName(for: from) ?? from
+                parts.append("FROM \(fromName)")
             }
             if let units = tx.units {
-                parts.append("\(NSDecimalNumber(decimal: units).doubleValue.formatted(.number.precision(.fractionLength(2)))) units")
+                let unitsFormatted = NSDecimalNumber(decimal: units).doubleValue.formatted(.number.precision(.fractionLength(2)))
+                // Calculate and show price per unit if available
+                if units > 0 {
+                    let totalAmount = NSDecimalNumber(decimal: tx.amount).doubleValue
+                    let pricePerUnit = totalAmount / NSDecimalNumber(decimal: units).doubleValue
+                    parts.append("\(unitsFormatted) @ $\(pricePerUnit.formatted(.number.precision(.fractionLength(2))))")
+                } else {
+                    parts.append("\(unitsFormatted) units")
+                }
             }
             if !tx.contextTags.isEmpty {
                 parts.append(contentsOf: tx.contextTags)
@@ -606,6 +621,13 @@ struct TransactionRow: View {
         case .expense:
             return Color.lizhiTextPrimary.opacity(0.9)
         }
+    }
+    
+    /// Look up asset name/ticker from customID
+    func assetName(for customID: String?) -> String? {
+        guard let id = customID else { return nil }
+        // Find asset matching the customID and return its ticker (friendly name)
+        return assets.first(where: { $0.customID == id })?.ticker
     }
 }
 

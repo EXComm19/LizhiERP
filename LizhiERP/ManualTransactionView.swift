@@ -568,6 +568,8 @@ struct ManualTransactionView: View {
             tx.destinationAccountID = destinationAccountID
             tx.targetAssetID = targetAssetID
             tx.units = finalUnits
+            tx.pricePerUnit = (selectedType == .assetPurchase && pricePerUnit != nil) ? Decimal(pricePerUnit!) : nil
+            tx.fees = (selectedType == .assetPurchase && transactionFees != nil) ? Decimal(transactionFees!) : nil
             txID = tx.id
         } else {
             let newTx = Transaction(
@@ -583,7 +585,9 @@ struct ManualTransactionView: View {
                 currency: currency,
                 destinationAccountID: destinationAccountID,
                 targetAssetID: targetAssetID,
-                units: finalUnits
+                units: finalUnits,
+                pricePerUnit: (selectedType == .assetPurchase && pricePerUnit != nil) ? Decimal(pricePerUnit!) : nil,
+                fees: (selectedType == .assetPurchase && transactionFees != nil) ? Decimal(transactionFees!) : nil
             )
             modelContext.insert(newTx)
             txID = newTx.id

@@ -27,15 +27,19 @@ actor FinancialEngine {
             
             for sub in subs {
                 var safetyCounter = 0
-                while sub.firstBillDate <= today && safetyCounter < 12 {
+                while sub.nextPaymentDate <= today && safetyCounter < 12 {
+                    // Create Transaction using subscription's category settings
                     let tx = Transaction(
                         amount: sub.amount,
-                        type: .expense,
-                        category: .survival,
+                        type: sub.type,                    // Use subscription's type (expense/income)
+                        category: sub.category,            // Use subscription's engine category
                         source: .spending,
-                        date: sub.firstBillDate,
-                        contextTags: ["Subscription", sub.name],
-                        subcategory: "Bills"
+                        date: sub.nextPaymentDate,
+                        contextTags: [sub.name],           // Just the subscription name as context
+                        categoryName: sub.categoryName,    // Use subscription's category name
+                        subcategory: sub.subcategory,      // Use subscription's subcategory
+                        linkedAccountID: sub.linkedAccountID,
+                        currency: sub.currency
                     )
                     modelContext.insert(tx)
                     sub.advanceDueDate()
