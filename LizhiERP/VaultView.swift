@@ -8,6 +8,7 @@ struct VaultView: View {
     // Editor State
     @State private var showAssetEditor: Bool = false
     @State private var selectedAsset: AssetEntity? = nil
+    @State private var showStockDetail: Bool = false
     
     // Derived - Convert all values to base currency before summing
     var totalNetWorth: Decimal {
@@ -87,7 +88,7 @@ struct VaultView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedAsset = asset
-                                    showAssetEditor = true
+                                    showStockDetail = true
                                     triggerHaptic(.glassTap)
                                 }
                                 .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
@@ -157,9 +158,22 @@ struct VaultView: View {
         .sheet(isPresented: $showAssetEditor) {
             VaultAssetEditor(isPresented: $showAssetEditor, assetToEdit: selectedAsset)
         }
+        .sheet(isPresented: $showStockDetail) {
+            if let asset = selectedAsset {
+                StockDetailView(asset: asset)
+            } else {
+                Text("No asset selected")
+                    .foregroundStyle(.red)
+            }
+        }
         .onChange(of: showAssetEditor) { _, newValue in
             if !newValue {
                 selectedAsset = nil // Clear selection when sheet closes
+            }
+        }
+        .onChange(of: showStockDetail) { _, newValue in
+            if !newValue {
+                selectedAsset = nil // Clear selection when stock detail closes
             }
         }
     }
@@ -207,9 +221,14 @@ struct VaultAssetRow: View {
                     }
                 }
                 
-                // Subtitle: e.g. "12500 AUD" or "150 IVV"
+                // Subtitle: e.g. "12500 AUD" or "100 units @ $150.00"
                 if asset.type == .cash {
                      Text(asset.customID ?? asset.currency)
+                        .font(.caption)
+                        .foregroundStyle(Color.lizhiTextSecondary)
+                } else if asset.type == .stock || asset.type == .crypto {
+                    // Show holdings and current price per unit
+                    Text("\(asset.holdings.formatted()) units @ $\(NSDecimalNumber(decimal: asset.marketValue).doubleValue.formatted(.number.precision(.fractionLength(2))))")
                         .font(.caption)
                         .foregroundStyle(Color.lizhiTextSecondary)
                 } else {
@@ -222,21 +241,22 @@ struct VaultAssetRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                // Show raw value here or converted?
-                // Usually Vault shows the raw value I have.
-                // Dashboard shows the Net Worth.
+                // Show total market value
                 Text("$\(Int(NSDecimalNumber(decimal: asset.totalValue).doubleValue).formattedWithSeparator)")
-                    .font(.headline) // Make it bold/prominent
+                    .font(.headline)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.lizhiTextPrimary)
                 
-                // For stocks, ideally show change %. We don't have this in data yet.
-                // Placeholder logic:
-                if asset.type == .stock {
-                    Text("+1.2%") // Mock
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.green)
+                // For stocks, show P&L from initial value if available
+                if asset.type == .stock || asset.type == .crypto {
+                    if let initialValue = asset.initialValue, initialValue > 0 {
+                        let unrealizedGain = asset.totalValue - initialValue
+                        let gainPercent = (Double(truncating: unrealizedGain as NSNumber) / Double(truncating: initialValue as NSNumber)) * 100
+                        Text("\(gainPercent >= 0 ? "+" : "")\(gainPercent.formatted(.number.precision(.fractionLength(1))))%")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(gainPercent >= 0 ? .green : .red)
+                    }
                 }
             }
         }

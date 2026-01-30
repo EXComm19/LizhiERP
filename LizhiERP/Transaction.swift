@@ -39,12 +39,17 @@ final class Transaction: Codable {
     var linkedAccountID: String?        // Link to AssetEntity via customID (e.g. "CBA")
     var currency: String = "AUD"        // Default currency
     
+    // NEW FIELDS FOR TRANSFERS
+    var destinationAccountID: String?   // DESTINATION: Money goes INTO this Account (String ID)
+    var targetAssetID: UUID?            // INVESTMENT: Money buys this Asset (UUID)
+    var units: Decimal?                 // QUANTITY: How many shares/units bought
+    
     var isActiveIncome: Bool {
         // Simplified: All income types count towards "Active Income" for now
         return type == .income
     }
     
-    init(id: UUID = UUID(), amount: Decimal, type: TransactionType, category: TransactionCategory, source: TransactionSource, date: Date = Date(), contextTags: [String] = [], categoryName: String = "", subcategory: String = "", linkedAccountID: String? = nil, currency: String = "AUD") {
+    init(id: UUID = UUID(), amount: Decimal, type: TransactionType, category: TransactionCategory, source: TransactionSource, date: Date = Date(), contextTags: [String] = [], categoryName: String = "", subcategory: String = "", linkedAccountID: String? = nil, currency: String = "AUD", destinationAccountID: String? = nil, targetAssetID: UUID? = nil, units: Decimal? = nil) {
         self.id = id
         self.amount = amount
         self.type = type
@@ -56,10 +61,13 @@ final class Transaction: Codable {
         self.subcategory = subcategory
         self.linkedAccountID = linkedAccountID
         self.currency = currency
+        self.destinationAccountID = destinationAccountID
+        self.targetAssetID = targetAssetID
+        self.units = units
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, amount, type, category, source, date, contextTags, categoryName, subcategory, linkedAccountID, currency
+        case id, amount, type, category, source, date, contextTags, categoryName, subcategory, linkedAccountID, currency, destinationAccountID, targetAssetID, units
     }
     
     required init(from decoder: Decoder) throws {
@@ -75,6 +83,9 @@ final class Transaction: Codable {
         subcategory = try container.decodeIfPresent(String.self, forKey: .subcategory) ?? ""
         linkedAccountID = try container.decodeIfPresent(String.self, forKey: .linkedAccountID)
         currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "AUD"
+        destinationAccountID = try container.decodeIfPresent(String.self, forKey: .destinationAccountID)
+        targetAssetID = try container.decodeIfPresent(UUID.self, forKey: .targetAssetID)
+        units = try container.decodeIfPresent(Decimal.self, forKey: .units)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -90,5 +101,8 @@ final class Transaction: Codable {
         try container.encode(subcategory, forKey: .subcategory)
         try container.encode(linkedAccountID, forKey: .linkedAccountID)
         try container.encode(currency, forKey: .currency)
+        try container.encode(destinationAccountID, forKey: .destinationAccountID)
+        try container.encode(targetAssetID, forKey: .targetAssetID)
+        try container.encode(units, forKey: .units)
     }
 }

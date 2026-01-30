@@ -16,6 +16,7 @@ struct SubscriptionEditorView: View {
     @State private var currency: String = CurrencyService.shared.baseCurrency
     
     @State private var showDatePicker = false
+    @State private var weekdaysOnly = false
     
     @FocusState private var isNameFocused: Bool
     
@@ -152,27 +153,49 @@ struct SubscriptionEditorView: View {
                 }
                 .padding(.horizontal)
                 
-                // First Bill Date
+                // First Bill Date + Weekdays Only
                 VStack(alignment: .leading, spacing: 8) {
                     Text("FIRST BILL")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.lizhiTextSecondary)
                     
-                    Button {
-                        showDatePicker = true
-                    } label: {
-                        HStack {
-                            Text(firstBillDate.formatted(date: .numeric, time: .omitted))
-                                .foregroundStyle(Color.lizhiTextPrimary)
-                            Spacer()
-                            Image(systemName: "calendar")
-                                .foregroundStyle(Color.lizhiTextSecondary)
+                    HStack(spacing: 12) {
+                        Button {
+                            showDatePicker = true
+                        } label: {
+                            HStack {
+                                Text(firstBillDate.formatted(date: .numeric, time: .omitted))
+                                    .foregroundStyle(Color.lizhiTextPrimary)
+                                Spacer()
+                                Image(systemName: "calendar")
+                                    .foregroundStyle(Color.lizhiTextSecondary)
+                            }
+                            .padding()
+                            .frame(height: 56)
+                            .background(Color.lizhiSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .padding()
-                        .frame(height: 56)
-                        .background(Color.lizhiSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        
+                        Button {
+                            weekdaysOnly.toggle()
+                            triggerHaptic(.glassTap)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: weekdaysOnly ? "checkmark.square.fill" : "square")
+                                    .foregroundStyle(weekdaysOnly ? Color.blue : Color.lizhiTextSecondary)
+                                Text("Weekdays\nOnly")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.lizhiTextPrimary)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(height: 56)
+                            .background(Color.lizhiSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                     }
                 }
                 .padding(.horizontal)

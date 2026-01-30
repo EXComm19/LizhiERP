@@ -1,0 +1,43 @@
+# Xcode
+*.xcworkspace
+*.xcuserdata
+DerivedData/
+build/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Sensitive Data
+**/Secrets.swift
+**/APIKeys.swift
+.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Backup files
+*~
+*.swp
+
+# Build
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Firebase
+GoogleService-Info.plist

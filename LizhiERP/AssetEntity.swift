@@ -15,13 +15,17 @@ final class AssetEntity: Codable {
     // Bank Account Features
     var customID: String?       // User defined ID (e.g. "CBA", "AMEX")
     var initialBalance: Decimal // Opening balance for accounts
-    var cashBalance: Decimal?   // [NEW] Explicit balance for Cash assets
+    var cashBalance: Decimal?   // Explicit balance for Cash assets
+    var initialHoldings: Decimal? // [NEW] Opening units for Stocks/Crypto
     
     var isPassiveIncomeSource: Bool {
         return type == .stock || type == .crypto || type == .other
     }
     
-    init(id: UUID = UUID(), ticker: String, holdings: Decimal, marketValue: Decimal, type: AssetType = .stock, currency: String = "AUD", lastUpdated: Date = Date(), customID: String? = nil, initialBalance: Decimal = 0, cashBalance: Decimal? = nil) {
+    // Track total invested for P&L calculation (for stocks/crypto)
+    var initialValue: Decimal? // Total amount invested (cost basis)
+    
+    init(id: UUID = UUID(), ticker: String, holdings: Decimal, marketValue: Decimal, type: AssetType = .stock, currency: String = "AUD", lastUpdated: Date = Date(), customID: String? = nil, initialBalance: Decimal = 0, cashBalance: Decimal? = nil, initialHoldings: Decimal? = nil, initialValue: Decimal? = nil) {
         self.id = id
         self.ticker = ticker
         self.holdings = holdings
@@ -32,6 +36,8 @@ final class AssetEntity: Codable {
         self.customID = customID
         self.initialBalance = initialBalance
         self.cashBalance = cashBalance
+        self.initialHoldings = initialHoldings
+        self.initialValue = initialValue
     }
     
     var totalValue: Decimal {
@@ -42,7 +48,7 @@ final class AssetEntity: Codable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, ticker, holdings, marketValue, lastUpdated, type, currency, customID, initialBalance, cashBalance
+        case id, ticker, holdings, marketValue, lastUpdated, type, currency, customID, initialBalance, cashBalance, initialHoldings, initialValue
     }
     
     required init(from decoder: Decoder) throws {
@@ -57,6 +63,8 @@ final class AssetEntity: Codable {
         customID = try container.decodeIfPresent(String.self, forKey: .customID)
         initialBalance = try container.decodeIfPresent(Decimal.self, forKey: .initialBalance) ?? 0
         cashBalance = try container.decodeIfPresent(Decimal.self, forKey: .cashBalance)
+        initialHoldings = try container.decodeIfPresent(Decimal.self, forKey: .initialHoldings)
+        initialValue = try container.decodeIfPresent(Decimal.self, forKey: .initialValue)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -71,6 +79,8 @@ final class AssetEntity: Codable {
         try container.encode(customID, forKey: .customID)
         try container.encode(initialBalance, forKey: .initialBalance)
         try container.encode(cashBalance, forKey: .cashBalance)
+        try container.encode(initialHoldings, forKey: .initialHoldings)
+        try container.encode(initialValue, forKey: .initialValue)
     }
 }
 

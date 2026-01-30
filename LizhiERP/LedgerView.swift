@@ -447,17 +447,42 @@ struct TransactionRow: View {
     let tx: Transaction
     let categories: [CategoryEntity]
     
+    @Query private var assets: [AssetEntity]
+    
     var icon: String {
-        // 1. Match by Category Name
-        if let match = categories.first(where: { $0.name == tx.categoryName }) {
-            return match.icon
+        // Polymorphic Icon Logic
+        switch tx.type {
+        case .transfer:
+            return "arrow.left.arrow.right"
+        case .assetPurchase:
+            return "chart.line.uptrend.xyaxis"
+        case .income:
+            return "arrow.down.circle.fill"
+        case .expense:
+            // 1. Match by Category Name
+            if let match = categories.first(where: { $0.name == tx.categoryName }) {
+                return match.icon
+            }
+            // 2. Match by Subcategory
+            if !tx.subcategory.isEmpty, let match = categories.first(where: { $0.subcategories.contains(tx.subcategory) }) {
+                return match.icon
+            }
+            // 3. Fallback
+            return "circle"
         }
-        // 2. Match by Subcategory
-        if !tx.subcategory.isEmpty, let match = categories.first(where: { $0.subcategories.contains(tx.subcategory) }) {
-            return match.icon
+    }
+    
+    var iconColor: Color {
+        switch tx.type {
+        case .transfer:
+            return .blue
+        case .assetPurchase:
+            return .green
+        case .income:
+            return .green
+        case .expense:
+            return Color.lizhiTextSecondary
         }
-        // 3. Fallback
-        return "circle"
     }
     
     var body: some View {
@@ -465,18 +490,18 @@ struct TransactionRow: View {
             Circle()
                 .fill(Color.lizhiSurface)
                 .frame(width: 40, height: 40)
-                .overlay(Image(systemName: icon).foregroundStyle(Color.lizhiTextSecondary))
+                .overlay(Image(systemName: icon).foregroundStyle(iconColor))
             
             VStack(alignment: .leading, spacing: 2) {
-                // Primary: Subcategory (if exist) > Category Name > Engine Map
-                Text(!tx.subcategory.isEmpty ? tx.subcategory : (!tx.categoryName.isEmpty ? tx.categoryName : tx.category.rawValue))
+                // Polymorphic Primary Label
+                Text(primaryLabel)
                     .foregroundStyle(Color.lizhiTextPrimary)
                     .font(.body)
-                    .fontWeight(.bold) // Bold as requested
+                    .fontWeight(.bold)
                 
-                // Secondary: Note or Tags or original Category if subcat used
-                if !tx.contextTags.isEmpty || !tx.subcategory.isEmpty {
-                     Text(displayContext)
+                // Secondary Label
+                if !secondaryLabel.isEmpty {
+                     Text(secondaryLabel)
                         .foregroundStyle(Color.lizhiTextSecondary)
                         .font(.caption)
                         .lineLimit(1)
@@ -484,8 +509,9 @@ struct TransactionRow: View {
             }
             Spacer()
             
-            Text("\(tx.type == .expense ? "-" : "+")\(CurrencyService.shared.symbol(for: tx.currency.isEmpty ? "AUD" : tx.currency))\(Double(truncating: tx.amount as NSNumber), specifier: "%.2f")")
-                .foregroundStyle(tx.type == .expense ? Color.lizhiTextPrimary.opacity(0.9) : .green)
+            // Amount Display
+            Text(amountText)
+                .foregroundStyle(amountColor)
                 .fontWeight(.medium)
                 .font(.callout)
         }
@@ -494,18 +520,94 @@ struct TransactionRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
-    var displayContext: String {
-        var parts: [String] = []
-        // Append tags/notes
-        parts.append(contentsOf: tx.contextTags)
-        
-        // If no tags, maybe show category name to be helpful?
-        if parts.isEmpty && !tx.subcategory.isEmpty {
-            return !tx.categoryName.isEmpty ? tx.categoryName : tx.category.rawValue
+    // MARK: - Computed Properties
+    
+    var primaryLabel: String {
+        switch tx.type {
+        case .transfer:
+            // Show "FROM → TO"
+            let from = tx.linkedAccountID ?? "Unknown"
+            let to = tx.destinationAccountID ?? "Unknown"
+            return "\(from) → \(to)"
+            
+        case .assetPurchase:
+            // Show "BUY [Asset]"
+            if let targetID = tx.targetAssetID,
+               let asset = assets.first(where: { $0.id == targetID }) {
+                return "BUY \(asset.ticker)"
+            }
+            return "Asset Purchase"
+            
+        case .income, .expense:
+            // Standard: Subcategory > Category Name > Engine Map
+            return !tx.subcategory.isEmpty ? tx.subcategory : (!tx.categoryName.isEmpty ? tx.categoryName : tx.category.rawValue)
         }
+    }
+    
+    var secondaryLabel: String {
+        switch tx.type {
+        case .transfer:
+            // Show note/tags if any
+            return tx.contextTags.joined(separator: " • ")
+            
+        case .assetPurchase:
+            // Show "FROM [account], [units] units"
+            var parts: [String] = []
+            if let from = tx.linkedAccountID {
+                parts.append("FROM \(from)")
+            }
+            if let units = tx.units {
+                parts.append("\(NSDecimalNumber(decimal: units).doubleValue.formatted(.number.precision(.fractionLength(2)))) units")
+            }
+            if !tx.contextTags.isEmpty {
+                parts.append(contentsOf: tx.contextTags)
+            }
+            return parts.joined(separator: " • ")
+            
+        case .income, .expense:
+            var parts: [String] = []
+            parts.append(contentsOf: tx.contextTags)
+            
+            // If no tags, show category name to be helpful
+            if parts.isEmpty && !tx.subcategory.isEmpty {
+                return !tx.categoryName.isEmpty ? tx.categoryName : tx.category.rawValue
+            }
+            
+            return parts.joined(separator: " • ")
+        }
+    }
+    
+    var amountText: String {
+        let symbol = CurrencyService.shared.symbol(for: tx.currency.isEmpty ? "AUD" : tx.currency)
+        let amount = Double(truncating: tx.amount as NSNumber)
         
-        return parts.joined(separator: " • ")
+        switch tx.type {
+        case .transfer:
+            // Neutral display (no +/-)
+            return "\(symbol)\(amount.formatted(.number.precision(.fractionLength(2))))"
+        case .assetPurchase:
+            // Show as negative (money out)
+            return "-\(symbol)\(amount.formatted(.number.precision(.fractionLength(2))))"
+        case .income:
+            return "+\(symbol)\(amount.formatted(.number.precision(.fractionLength(2))))"
+        case .expense:
+            return "-\(symbol)\(amount.formatted(.number.precision(.fractionLength(2))))"
+        }
+    }
+    
+    var amountColor: Color {
+        switch tx.type {
+        case .transfer:
+            return .blue
+        case .assetPurchase:
+            return Color.lizhiTextPrimary.opacity(0.9)
+        case .income:
+            return .green
+        case .expense:
+            return Color.lizhiTextPrimary.opacity(0.9)
+        }
     }
 }
+
 
 

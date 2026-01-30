@@ -1,5 +1,5 @@
 {
-  "originHash" : "c63c63846d9c539229e96de38d6af51417e28c0ee9a0bc48bd0f0f19d923c329",
+  "originHash" : "acc22506ecb4ca4278af6dd86b8b1edb49b39fa3bc7c53071a95a472ead7172d",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -116,6 +116,15 @@
       "state" : {
         "revision" : "540318ecedd63d883069ae7f1ed811a2df00b6ac",
         "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "xcastocksapi",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/alfianlosari/XCAStocksAPI.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "2b2116f70ac12727a8e17918ea3e94fd5687bd0e"
       }
     }
   ],

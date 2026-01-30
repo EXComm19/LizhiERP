@@ -14,7 +14,8 @@ struct LizhiERPApp: App {
             AssetEntity.self,
             Subscription.self,
             PhysicalAsset.self,
-            CategoryEntity.self
+            CategoryEntity.self,
+            StockTransaction.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

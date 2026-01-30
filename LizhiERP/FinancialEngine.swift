@@ -182,64 +182,238 @@ actor FinancialEngine {
     
     // MARK: - Asset Management
     
-    /// Recalculates balances for all assets with a Custom ID.
+    /// Recalculates balances for all assets.
+    /// Handles: Income, Expenses, Transfers (Bank-to-Bank), and Investments (Bank-to-Asset).
     func recalculateAssetBalances() async {
         // Fetch fresh copies of everything using our stored context
-        let assetDescriptor = FetchDescriptor<AssetEntity>(predicate: #Predicate { $0.customID != nil })
-        let txDescriptor = FetchDescriptor<Transaction>(predicate: #Predicate { $0.linkedAccountID != nil })
+        let assetDescriptor = FetchDescriptor<AssetEntity>()
+        let txDescriptor = FetchDescriptor<Transaction>()
         
         do {
             let assets = try modelContext.fetch(assetDescriptor)
             let transactions = try modelContext.fetch(txDescriptor)
             
-            // Group transactions by Account ID for efficiency
-            let txsByAccount = Dictionary(grouping: transactions, by: { $0.linkedAccountID ?? "" })
-            
-            var updatesCount = 0
-            
+            // 1. Reset all assets to initial state
             for asset in assets {
-                guard let accountID = asset.customID else { continue }
+                if asset.type == .cash {
+                    asset.cashBalance = asset.initialBalance
+                } else {
+                    // For stocks, reset to initial holdings
+                    asset.holdings = asset.initialHoldings ?? 0
+                    // Market Value remains implicitly "current price" so we don't reset it here usually,
+                    // but 'totalValue' is derived. 'marketValue' is the UNIT PRICE.
+                }
+            }
+            
+            // 2. Replay History
+            for tx in transactions {
+                // In MVP, assuming same currency or simple raw amount impact.
+                // Future: Use CurrencyService to convert amount to asset's currency.
+                let amount = tx.amount
                 
-                var newBalance = asset.initialBalance
-                
-                if let accountTxs = txsByAccount[accountID] {
-                    for tx in accountTxs {
-                        // In MVP, assuming same currency.
-                        // Future: Convert tx.amount to asset.currency
-                        let amountEffect = tx.amount
-                        
+                // --- A. HANDLE SOURCE (Money Out) ---
+                if let sourceID = tx.linkedAccountID,
+                   let sourceAsset = assets.first(where: { $0.customID == sourceID }) {
+                    
+                    if sourceAsset.type == .cash {
+                        // Deduct from Source (Expense, Transfer Out, Asset Purchase)
+                        // Note: Income adds to source, others subtract.
                         if tx.type == .income {
-                            newBalance += amountEffect
-                        } else if tx.type == .expense {
-                            newBalance -= amountEffect
-                        } else if tx.type == .assetPurchase {
-                            newBalance -= amountEffect
+                            sourceAsset.cashBalance = (sourceAsset.cashBalance ?? 0) + amount
+                        } else {
+                            // Expense, Transfer, Asset Purchase all reduce the source balance
+                            sourceAsset.cashBalance = (sourceAsset.cashBalance ?? 0) - amount
                         }
                     }
                 }
                 
-                print("DEBUG: Engine - Updating \(asset.ticker) (\(accountID)) to \(newBalance)")
+                // --- B. HANDLE DESTINATION (Money In) ---
                 
-                // Polymorphic Assignment
-                if asset.type == .cash {
-                    asset.cashBalance = newBalance
-                } else {
-                    asset.marketValue = newBalance
+                // Case 1: Cash Transfer (Bank -> Bank)
+                if tx.type == .transfer,
+                   let destID = tx.destinationAccountID,
+                   let destAsset = assets.first(where: { $0.customID == destID }) {
+                    
+                    if destAsset.type == .cash {
+                        destAsset.cashBalance = (destAsset.cashBalance ?? 0) + amount
+                    }
                 }
                 
-                asset.lastUpdated = Date()
-                updatesCount += 1
+                // Case 2: Asset Purchase (Bank -> Stock)
+                if tx.type == .assetPurchase,
+                   let targetUUID = tx.targetAssetID,
+                   let targetAsset = assets.first(where: { $0.id == targetUUID }) {
+                    
+                    // Increase Holdings (Shares)
+                    if let units = tx.units {
+                        targetAsset.holdings += units
+                    }
+                }
             }
             
-            if updatesCount > 0 && modelContext.hasChanges {
+            // 3. Mark Valid & Save
+            for asset in assets {
+                 asset.lastUpdated = Date()
+            }
+            
+            if modelContext.hasChanges {
                 try modelContext.save()
-                print("DEBUG: Engine - Successfully saved \(updatesCount) asset updates to disk.")
-            } else {
-                print("DEBUG: Engine - No changes needed.")
+                print("FinancialEngine: Asset balances reconciled.")
             }
             
         } catch {
             print("Error recalculating asset balances: \(error)")
+        }
+    }
+    
+    // MARK: - Stock Transactions
+    
+    /// Record a stock purchase transaction
+    func recordStockPurchase(
+        assetID: UUID,
+        units: Decimal,
+        pricePerUnit: Decimal,
+        fees: Decimal,
+        date: Date,
+        notes: String = ""
+    ) async {
+        let transaction = StockTransaction(
+            assetID: assetID,
+            type: .buy,
+            units: units,
+            pricePerUnit: pricePerUnit,
+            fees: fees,
+            date: date,
+            notes: notes
+        )
+        
+        modelContext.insert(transaction)
+        
+        // Update asset holdings
+        let targetID = assetID
+        if let asset = try? modelContext.fetch(FetchDescriptor<AssetEntity>(predicate: #Predicate { $0.id == targetID })).first {
+            asset.holdings += units
+            asset.lastUpdated = date
+        }
+        
+        do {
+            try modelContext.save()
+            print("✅ Stock purchase recorded: \(units) units @ $\(pricePerUnit)")
+        } catch {
+            print("❌ Failed to save stock purchase: \(error)")
+        }
+    }
+    
+    /// Record a stock sale transaction
+    func recordStockSale(
+        assetID: UUID,
+        units: Decimal,
+        pricePerUnit: Decimal,
+        fees: Decimal,
+        date: Date,
+        notes: String = ""
+    ) async {
+        let transaction = StockTransaction(
+            assetID: assetID,
+            type: .sell,
+            units: units,
+            pricePerUnit: pricePerUnit,
+            fees: fees,
+            date: date,
+            notes: notes
+        )
+        
+        modelContext.insert(transaction)
+        
+        // Update asset holdings
+        let targetID = assetID
+        if let asset = try? modelContext.fetch(FetchDescriptor<AssetEntity>(predicate: #Predicate { $0.id == targetID })).first {
+            asset.holdings -= units
+            asset.lastUpdated = date
+        }
+        
+        do {
+            try modelContext.save()
+            print("✅ Stock sale recorded: \(units) units @ $\(pricePerUnit)")
+        } catch {
+            print("❌ Failed to save stock sale: \(error)")
+        }
+    }
+    
+    /// Get all stock transactions for a specific asset
+    func getStockTransactions(assetID: UUID) -> [StockTransaction] {
+        let targetID = assetID
+        let descriptor = FetchDescriptor<StockTransaction>(
+            predicate: #Predicate { $0.assetID == targetID },
+            sortBy: [SortDescriptor(\.date, order: .forward)] // Oldest first for correct cost basis
+        )
+        
+        do {
+            return try modelContext.fetch(descriptor)
+        } catch {
+            print("❌ Failed to fetch stock transactions: \(error)")
+            return []
+        }
+    }
+    
+    /// Calculate average cost basis for a stock using weighted average method
+    func calculateAverageCostBasis(assetID: UUID) -> Decimal {
+        let transactions = getStockTransactions(assetID: assetID)
+        
+        var totalCost: Decimal = 0
+        var totalUnits: Decimal = 0
+        
+        for tx in transactions {
+            if tx.type == .buy {
+                totalCost += tx.totalAmount
+                totalUnits += tx.units
+            } else { // sell
+                // For sells, reduce the total invested proportionally
+                let ratio = tx.units / totalUnits
+                totalCost -= (totalCost * ratio)
+                totalUnits -= tx.units
+            }
+        }
+        
+        guard totalUnits > 0 else { return 0 }
+        return totalCost / totalUnits
+    }
+    
+    /// Calculate total amount invested (all buys minus sells)
+    func calculateTotalInvested(assetID: UUID) -> Decimal {
+        let transactions = getStockTransactions(assetID: assetID)
+        
+        var totalInvested: Decimal = 0
+        
+        for tx in transactions {
+            if tx.type == .buy {
+                totalInvested += tx.totalAmount
+            } else {
+                totalInvested -= tx.totalAmount
+            }
+        }
+        
+        return totalInvested
+    }
+    
+    /// Delete a stock transaction
+    func deleteStockTransaction(_ transaction: StockTransaction) async {
+        // Reverse the holdings change
+        let targetID = transaction.assetID
+        if let asset = try? modelContext.fetch(FetchDescriptor<AssetEntity>(predicate: #Predicate { $0.id == targetID })).first {
+            if transaction.type == .buy {
+                asset.holdings -= transaction.units
+            } else {
+                asset.holdings += transaction.units
+            }
+        }
+        
+        modelContext.delete(transaction)
+        
+        do {
+            try modelContext.save()
+        } catch {
+            print("❌ Failed to delete stock transaction: \(error)")
         }
     }
 }
