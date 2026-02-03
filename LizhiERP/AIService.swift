@@ -4,13 +4,36 @@ import FirebaseAILogic
 struct FinancialForecast: Codable {
     var estimatedFireDate: Date
     var lifestyleCreepIndex: Double
-    var strategicInsight: String? // "Optimist / Strategist"
-    var tacticalInsight: String? // "Critical / Realist"
-    var actionableInsights: [String] // Legacy
+    var spendingAdvice: String? // General spending patterns, lifestyle creep
+    var billInsights: String? // Repetitive billing, wrong units, wrong category
+    var investmentStrategies: String? // Portfolio rebalancing, asset allocation
+    var actionableInsights: [String] // Legacy fallback
     
     // Fallback computed properties
-    var primaryInsight: String { strategicInsight ?? actionableInsights.first ?? "No insight available." }
-    var secondaryInsight: String { tacticalInsight ?? (actionableInsights.count > 1 ? actionableInsights[1] : "Keep tracking.") }
+    var primarySpendingAdvice: String { spendingAdvice ?? actionableInsights.first ?? "Analyzing spending patterns..." }
+    var primaryBillInsight: String { billInsights ?? (actionableInsights.count > 1 ? actionableInsights[1] : "Scanning bills...") }
+    var primaryInvestmentStrategy: String { investmentStrategies ?? (actionableInsights.count > 2 ? actionableInsights[2] : "Evaluating portfolio...") }
+}
+
+/// Lightweight Codable DTO for Subscription (SwiftData models can't directly conform to Codable)
+struct SubscriptionDTO: Codable {
+    let name: String
+    let amount: Double
+    let cycle: String
+    let categoryName: String
+    let subcategory: String
+    let nextPaymentDate: Date
+    let brandDomain: String?
+    
+    init(from subscription: Subscription) {
+        self.name = subscription.name
+        self.amount = NSDecimalNumber(decimal: subscription.amount).doubleValue
+        self.cycle = subscription.cycle
+        self.categoryName = subscription.categoryName
+        self.subcategory = subscription.subcategory
+        self.nextPaymentDate = subscription.nextPaymentDate
+        self.brandDomain = subscription.brandDomain
+    }
 }
 
 class AIService {
@@ -103,21 +126,19 @@ class AIService {
         1. Analyze spending velocity vs. investment growth. Detect if 'Material' spending is eating into the 'Freedom Fund'.
         2. Project the FIRE date based on current savings rate.
         3. Calculate 'Lifestyle Creep Index' (0.0 to 1.0). 1.0 means survival costs are rising alarmingly.
-        4. Generate 2 **highly specific and Distinctive, conversational** insights (Max 20 words each).
-           - BAD: "Reduce your material spending."
-           - GOOD: "I see you dropped $3,200 at the Sony Store. cool camera, but that just pushed your FIRE date back by 2 weeks. Was it worth it?"
-           - GOOD: "Your experiential spending is up, but your passive income covers it. Great job living life while building wealth, Kehan."
-           - Strategic Insight: Big picture trend.
-           - Tactical Insight: Immediate quick win.
+        4. Generate 3 **highly specific and Distinctive, conversational** insights (Max 25 words each):
+           - **Spending Advice**: Big picture spending patterns, lifestyle creep warnings, category imbalances.
+           - **Bill Insights**: Detect repetitive/duplicate subscriptions, unusual billing amounts, potential wrong category assignments, note typos.
+           - **Investment Strategies**: Portfolio rebalancing suggestions, asset allocation tips, when to buy/hold/sell.
 
-        
         Return ONLY valid JSON matching this schema:
         {
           "estimatedFireDate": "ISO8601 Date String",
           "lifestyleCreepIndex": 0.5,
-          "strategicInsight": "Strategic advice",
-          "tacticalInsight": "Tactical advice",
-          "actionableInsights": [] 
+          "spendingAdvice": "Your spending advice here",
+          "billInsights": "Your bill insights here",
+          "investmentStrategies": "Your investment strategies here",
+          "actionableInsights": []
         }
         """
         
@@ -170,5 +191,51 @@ class AIService {
         })
         
         return try decoder.decode(FinancialForecast.self, from: data)
+    }
+    
+    /// Answers a custom user question about their financial data
+    func askQuestion(
+        question: String,
+        transactions: [Transaction],
+        assets: [AssetEntity],
+        subscriptions: [Subscription]
+    ) async throws -> String {
+        let firebaseAI = FirebaseAI.firebaseAI(backend: .googleAI())
+        let model = firebaseAI.generativeModel(modelName: "gemini-3-flash-preview")
+        
+        // Serialize data
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        encoder.dateEncodingStrategy = .iso8601
+        
+        let txData = try encoder.encode(transactions)
+        let assetData = try encoder.encode(assets)
+        let subDTOs = subscriptions.map { SubscriptionDTO(from: $0) }
+        let subData = try encoder.encode(subDTOs)
+        let txString = String(data: txData, encoding: .utf8) ?? "[]"
+        let assetString = String(data: assetData, encoding: .utf8) ?? "[]"
+        let subString = String(data: subData, encoding: .utf8) ?? "[]"
+        
+        let prompt = """
+        You are 'The Oracle', Kehan's personal financial assistant. Answer the following question concisely and conversationally.
+        
+        USER QUESTION: \(question)
+        
+        FINANCIAL DATA:
+        Transactions: \(txString)
+        Assets: \(assetString)
+        Subscriptions (Fixed Costs): \(subString)
+        
+        Instructions:
+        - Be direct and conversational.
+        - If the question involves currency conversion, use reasonable current rates.
+        - If you cannot answer from the data, say so honestly.
+        - Keep your response under 50 words unless the user asks for detail.
+        
+        Respond in plain text (no JSON).
+        """
+        
+        let response = try await model.generateContent(prompt)
+        return response.text ?? "I couldn't process that question. Try rephrasing?"
     }
 }

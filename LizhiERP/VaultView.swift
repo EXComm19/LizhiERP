@@ -38,7 +38,7 @@ struct VaultView: View {
                     .fontWeight(.bold)
                     .foregroundStyle(Color.lizhiTextPrimary)
                 
-                Text("Total: \(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(Int(NSDecimalNumber(decimal: totalNetWorth).doubleValue).formattedWithSeparator)")
+                Text("Total: \(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(NSDecimalNumber(decimal: totalNetWorth).doubleValue.formatted(.number.precision(.fractionLength(2))))")
                     .font(.subheadline)
                     .foregroundStyle(Color.lizhiTextSecondary)
             }
@@ -191,79 +191,274 @@ struct VaultAssetRow: View {
     let icon: String
     let iconColor: Color
     
+    // logic extraction for ViewBuilder compatibility
+    private var gainPercent: Double {
+        if let initial = asset.initialValue, initial > 0 {
+             let profit = asset.totalValue - initial
+             let initialDouble = NSDecimalNumber(decimal: initial).doubleValue
+             let profitDouble = NSDecimalNumber(decimal: profit).doubleValue
+             return (profitDouble / initialDouble) * 100
+        }
+        return 0.0
+    }
+    
     var body: some View {
-        HStack(spacing: 16) {
-            // Icon
-            Circle()
-                .fill(Color.lizhiSurface) // Darker inner bg
-                .frame(width: 48, height: 48)
+        if asset.type == .cash {
+            CashAssetCard(
+                name: asset.ticker,
+                accountId: asset.customID ?? "No ID",
+                balance: NSDecimalNumber(decimal: asset.totalValue).doubleValue,
+                currency: asset.currency,
+                brandDomain: asset.brandDomain
+            )
+        } else if asset.type == .stock || asset.type == .crypto {
+            InvestmentAssetCard(
+                ticker: asset.ticker,
+                name: asset.ticker, // Or descriptive name if available
+                units: NSDecimalNumber(decimal: asset.holdings).doubleValue,
+                price: NSDecimalNumber(decimal: asset.marketValue).doubleValue,
+                changePercent: gainPercent, 
+                currency: asset.currency
+            )
+        } else {
+            // Fallback for other types
+            HStack(spacing: 16) {
+                Circle()
+                    .fill(Color.lizhiSurface)
+                    .frame(width: 48, height: 48)
+                    .overlay(Image(systemName: icon).foregroundStyle(iconColor))
+                
+                VStack(alignment: .leading) {
+                    Text(asset.ticker).font(.headline).foregroundStyle(Color.lizhiTextPrimary)
+                    Text("\(asset.holdings) units").font(.caption).foregroundStyle(Color.lizhiTextSecondary)
+                }
+                Spacer()
+                Text(CurrencyService.shared.format(asset.totalValue, currency: asset.currency))
+                    .font(.headline).fontWeight(.bold).foregroundStyle(Color.lizhiTextPrimary)
+            }
+            .padding().background(Color.lizhiSurface).clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+}
+
+// MARK: - Cash Asset Card
+struct CashAssetCard: View {
+    let name: String
+    let accountId: String
+    let balance: Double
+    let currency: String
+    let brandDomain: String?
+    
+    var body: some View {
+        ZStack {
+            // Card Background
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(hex: "1C1C1E"))
                 .overlay(
-                    Image(systemName: icon)
-                        .foregroundStyle(iconColor)
-                        .font(.title3)
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 )
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
             
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(asset.ticker)
-                        .font(.headline)
-                        .foregroundStyle(Color.lizhiTextPrimary)
+            HStack(spacing: 16) {
+                // Icon Container
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 48, height: 48)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                        )
                     
-                    if let code = asset.customID {
-                        Text(code)
+                    if let domain = brandDomain, !domain.isEmpty {
+                         let logoURLString = "https://img.logo.dev/\(domain)?token=pk_EcUNocp3RJOn4qZwg9KGTA&size=200&format=png&retina=true"
+                         
+                         CachedLogoView(url: URL(string: logoURLString)) {
+                             // Fallback / Loading
+                             Image(systemName: "wallet.pass.fill")
+                                 .font(.system(size: 24))
+                                 .foregroundStyle(Color.blue)
+                         } content: { image in
+                             image
+                                 .resizable()
+                                 .aspectRatio(contentMode: .fit)
+                                 .frame(width: 48, height: 48) // Fill container
+                                 .clipShape(RoundedRectangle(cornerRadius: 14))
+                         }
+                    } else {
+                        Image(systemName: "wallet.pass.fill")
+                            .font(.system(size: 24)) 
+                            .foregroundStyle(Color.blue)
+                    }
+                }
+                
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(name)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    
+                    Text(accountId)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                
+                Spacer()
+                
+                // Balance
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(CurrencyService.shared.format(Decimal(balance), currency: currency))
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .fontDesign(.rounded)
+                    
+                    Text("Available")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.white.opacity(0.4))
+                }
+            }
+            .padding(16)
+        }
+    }
+}
+
+// MARK: - Investment Asset Card
+struct InvestmentAssetCard: View {
+    let ticker: String
+    let name: String
+    let units: Double
+    let price: Double
+    let changePercent: Double
+    let currency: String
+    
+    var isPositive: Bool { changePercent >= 0 }
+    var totalValue: Double { units * price }
+    
+    var body: some View {
+        ZStack {
+            // Card Background
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(hex: "1C1C1E"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+            
+            VStack(spacing: 12) {
+                // Top Row
+                HStack(alignment: .top) {
+                    HStack(spacing: 12) {
+                        // Icon Container
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous) // Match Cash Card (14)
+                                .fill(isPositive ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                                .frame(width: 48, height: 48) // Match Cash Card (48)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(isPositive ? Color.green.opacity(0.2) : Color.red.opacity(0.2), lineWidth: 1)
+                                )
+                            
+                            let tickerLogoURL = "https://img.logo.dev/ticker/\(ticker)?token=pk_EcUNocp3RJOn4qZwg9KGTA&size=200&retina=true"
+                            
+                            CachedLogoView(url: URL(string: tickerLogoURL)) {
+                                // Fallback / Loading
+                                Image(systemName: "chart.line.uptrend.xyaxis")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(isPositive ? Color.green : Color.red)
+                            } content: { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 48, height: 48) // Fill container
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ticker)
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                            
+                            Text(name)
+                                .font(.caption)
+                                .foregroundStyle(Color.white.opacity(0.4))
+                                .lineLimit(1)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Change Badge
+                    HStack(spacing: 4) {
+                        Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
+                            .font(.caption2)
+                        Text("\(abs(changePercent).formatted(.number.precision(.fractionLength(1))))%")
                             .font(.caption2)
                             .fontWeight(.bold)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.lizhiTextSecondary.opacity(0.1))
-                            .foregroundStyle(Color.lizhiTextSecondary)
-                            .clipShape(Capsule())
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isPositive ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                    .foregroundStyle(isPositive ? .green : .red)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(isPositive ? Color.green.opacity(0.2) : Color.red.opacity(0.2), lineWidth: 1)
+                    )
                 }
                 
-                // Subtitle: e.g. "12500 AUD" or "100 units @ $150.00"
-                if asset.type == .cash {
-                     Text(asset.customID ?? asset.currency)
-                        .font(.caption)
-                        .foregroundStyle(Color.lizhiTextSecondary)
-                } else if asset.type == .stock || asset.type == .crypto {
-                    // Show holdings and current price per unit
-                    Text("\(asset.holdings.formatted()) units @ $\(NSDecimalNumber(decimal: asset.marketValue).doubleValue.formatted(.number.precision(.fractionLength(2))))")
-                        .font(.caption)
-                        .foregroundStyle(Color.lizhiTextSecondary)
-                } else {
-                    Text("\(asset.holdings.formatted()) \(asset.currency.isEmpty ? "Units" : asset.currency)")
-                        .font(.caption)
-                        .foregroundStyle(Color.lizhiTextSecondary)
-                }
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                // Show total market value
-                Text("$\(Int(NSDecimalNumber(decimal: asset.totalValue).doubleValue).formattedWithSeparator)")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.lizhiTextPrimary)
+                Divider().background(Color.white.opacity(0.05))
                 
-                // For stocks, show P&L from initial value if available
-                if asset.type == .stock || asset.type == .crypto {
-                    if let initialValue = asset.initialValue, initialValue > 0 {
-                        let unrealizedGain = asset.totalValue - initialValue
-                        let gainPercent = (Double(truncating: unrealizedGain as NSNumber) / Double(truncating: initialValue as NSNumber)) * 100
-                        Text("\(gainPercent >= 0 ? "+" : "")\(gainPercent.formatted(.number.precision(.fractionLength(1))))%")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(gainPercent >= 0 ? .green : .red)
+                // Bottom Row
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Position")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.white.opacity(0.4))
+                        
+                        HStack(spacing: 4) {
+                            Text("\(units.formatted())")
+                                .foregroundStyle(Color.white.opacity(0.8))
+                            Text("×")
+                                .foregroundStyle(Color.white.opacity(0.3))
+                            Text(CurrencyService.shared.format(Decimal(price), currency: currency))
+                                .foregroundStyle(Color.white.opacity(0.8))
+                        }
+                        .font(.caption)
+                        .fontDesign(.monospaced)
                     }
+                    
+                    Spacer()
+                    
+                    Text(CurrencyService.shared.format(Decimal(totalValue), currency: currency))
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .fontDesign(.rounded)
                 }
             }
+            .padding(16)
         }
-        .padding()
-        .background(Color.lizhiSurface) // Dark Card
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.lizhiTextSecondary.opacity(0.1), lineWidth: 1))
+    }
+}
+
+// Extension needed if not already present
+extension CurrencyService {
+    func format(_ amount: Decimal, currency: String) -> String {
+        return "\(symbol(for: currency))\(NSDecimalNumber(decimal: amount).doubleValue.formatted(.number.precision(.fractionLength(2))))"
     }
 }
 
@@ -283,6 +478,7 @@ struct VaultAssetEditor: View {
     // Bank Account Features
     @State private var customID: String = ""
     @State private var initialBalance: Double?
+    @State private var brandDomain: String = "" // [NEW]
     
     var isEditing: Bool { assetToEdit != nil }
     
@@ -304,6 +500,10 @@ struct VaultAssetEditor: View {
                     if type == .cash {
                         TextField("Account ID (e.g. CBA, AMEX)", text: $customID)
                             .textInputAutocapitalization(.characters)
+                        
+                        TextField("Brand Domain (e.g. westpac.com)", text: $brandDomain)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
                         
                         TextField("Initial Balance", value: $initialBalance, format: .number)
                             .keyboardType(.decimalPad)
@@ -373,6 +573,7 @@ struct VaultAssetEditor: View {
                         currency = freshAsset.currency
                         customID = freshAsset.customID ?? ""
                         initialBalance = NSDecimalNumber(decimal: freshAsset.initialBalance).doubleValue
+                        brandDomain = freshAsset.brandDomain ?? ""
                     } else {
                         print("DEBUG: AssetEditor - Fresh Fetch Failed (ID lookup failed), using passed asset.")
                         // Fallback
@@ -387,6 +588,7 @@ struct VaultAssetEditor: View {
                         currency = passedAsset.currency
                         customID = passedAsset.customID ?? ""
                         initialBalance = NSDecimalNumber(decimal: passedAsset.initialBalance).doubleValue
+                        brandDomain = passedAsset.brandDomain ?? ""
                     }
                 }
             }
@@ -399,6 +601,7 @@ struct VaultAssetEditor: View {
         let finalValue = Decimal(value ?? 0)
         let finalInitial = Decimal(initialBalance ?? 0)
         let finalCustomID = customID.isEmpty ? nil : customID
+        let finalBrandDomain = brandDomain.isEmpty ? nil : brandDomain
         
         // Polymorphic Save Logic
         // For Cash: value -> cashBalance, marketValue -> 0
@@ -417,6 +620,7 @@ struct VaultAssetEditor: View {
             existingAsset.currency = currency
             existingAsset.customID = finalCustomID
             existingAsset.initialBalance = finalInitial
+            existingAsset.brandDomain = finalBrandDomain
             existingAsset.lastUpdated = Date()
         } else {
             // Create new
@@ -428,7 +632,8 @@ struct VaultAssetEditor: View {
                 currency: currency,
                 customID: finalCustomID,
                 initialBalance: finalInitial,
-                cashBalance: targetCashBalance
+                cashBalance: targetCashBalance,
+                brandDomain: finalBrandDomain
             )
             modelContext.insert(asset)
         }

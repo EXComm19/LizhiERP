@@ -7,79 +7,53 @@ struct PulseManagerView: View {
     @Query private var subscriptions: [Subscription]
     @Query private var categories: [CategoryEntity]
     
-    @State private var selectedSubscription: Subscription?
-    @State private var showEditor = false
+    // Removed duplicate declaration
     
-    // Valid days for calendar strip (mocked relative to today)
-    let days: [Date] = (-2...3).map { Calendar.current.date(byAdding: .day, value: $0, to: Date())! }
+    // Editor Configuration Wrapper for Sheet Identity
+    struct SubscriptionEditorConfig: Identifiable {
+        let id = UUID()
+        let subscription: Subscription?
+    }
+    
+    @State private var editorConfig: SubscriptionEditorConfig?
+    // Removed in favor of item binding
+    
+    // Valid days property removed as Calendar Strip is removed
     
     var body: some View {
         ZStack {
             Color.lizhiBackground.ignoresSafeArea()
             
             VStack(alignment: .leading, spacing: 0) {
-                // Header: Large Bold Title (Left Aligned) - Consistent with other pages
-                HStack {
-                    Text("Fixed Costs")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.lizhiTextPrimary)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Fixed Costs")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.lizhiTextPrimary)
+                        
+                        Text("Monthly: \(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(String(format: "%.2f", NSDecimalNumber(decimal: monthlyTotal).doubleValue))")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.lizhiTextSecondary)
+                    }
                     
                     Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-                
-                // Calendar Strip - Shows upcoming subscription due dates
-                HStack(spacing: 8) {
-                    ForEach(days, id: \.self) { day in
-                        let dueCount = subscriptionsDue(on: day).count
-                        let isToday = Calendar.current.isDateInToday(day)
-                        
-                        VStack(spacing: 6) {
-                            Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .foregroundStyle(Color.lizhiTextSecondary)
-                            
-                            ZStack {
-                                Text(day.formatted(.dateTime.day()))
-                                    .font(.title3)
-                                    .fontWeight(isToday ? .bold : .regular)
-                                    .foregroundStyle(isToday ? Color.white : Color.lizhiTextPrimary)
-                            }
-                            
-                            // Subscription due indicator
-                            if dueCount > 0 {
-                                HStack(spacing: 2) {
-                                    Circle()
-                                        .fill(dueCount > 0 ? Color.orange : Color.clear)
-                                        .frame(width: 6, height: 6)
-                                    if dueCount > 1 {
-                                        Text("+\(dueCount - 1)")
-                                            .font(.system(size: 8, weight: .bold))
-                                            .foregroundStyle(Color.orange)
-                                    }
-                                }
-                            } else {
-                                Color.clear.frame(height: 6)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(isToday ? Color.blue : Color.lizhiSurface)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(dueCount > 0 && !isToday ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1.5)
-                        )
+                    
+                    Button {
+                        // Action for View Calendar
+                        print("View Calendar Tapped")
+                    } label: {
+                        Text("Calendar")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.blue)
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
+                .padding(.bottom, 20)
+                
+                // Calendar Strip Removed
                 
                 // Ghost Charge Alert
                 if hasGhostCharge {
@@ -124,8 +98,7 @@ struct PulseManagerView: View {
                             SubscriptionRow(sub: sub, categories: categories)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    selectedSubscription = sub
-                                    showEditor = true
+                                    editorConfig = SubscriptionEditorConfig(subscription: sub)
                                     triggerHaptic(.glassTap)
                                 }
                                 .contextMenu {
@@ -136,8 +109,7 @@ struct PulseManagerView: View {
                                     }
                                     
                                     Button {
-                                        selectedSubscription = sub
-                                        showEditor = true
+                                        editorConfig = SubscriptionEditorConfig(subscription: sub)
                                     } label: {
                                         Label("Edit", systemImage: "pencil")
                                     }
@@ -168,17 +140,21 @@ struct PulseManagerView: View {
                             .padding(.top, 60)
                         }
                         
-                        Spacer().frame(height: 100)
+                        Spacer().frame(height: 120) // Increased safe area for tab bar
                     }
                     .padding(.horizontal, 20)
                 }
-                
-                Spacer().frame(height: 100)
             }
         }
-        .sheet(isPresented: $showEditor) {
-            SubscriptionEditorView(isPresented: $showEditor, subscriptionToEdit: selectedSubscription)
-                .presentationDetents([.large])
+        .sheet(item: $editorConfig) { config in
+            SubscriptionEditorView(
+                isPresented: Binding(
+                    get: { editorConfig != nil },
+                    set: { if !$0 { editorConfig = nil } }
+                ),
+                subscriptionToEdit: config.subscription
+            )
+            .presentationDetents([.large])
         }
         .onAppear {
             print("PulseManagerView appeared. Subscriptions count: \(subscriptions.count)")
@@ -203,14 +179,7 @@ struct PulseManagerView: View {
         }
     }
     
-    /// Find subscriptions due on a specific date
-    func subscriptionsDue(on date: Date) -> [Subscription] {
-        let calendar = Calendar.current
-        return subscriptions.filter { sub in
-            // Check if the subscription's due date falls on this day
-            calendar.isDate(sub.nextPaymentDate, inSameDayAs: date)
-        }
-    }
+    // Helper method `subscriptionsDue` removed
     
     func deleteSubscription(_ sub: Subscription) {
         modelContext.delete(sub)
@@ -256,46 +225,96 @@ struct SubscriptionRow: View {
         return sub.type == .income ? "arrow.up.circle.fill" : "arrow.down.circle.fill"
     }
     
-    // Color based on type
-    var typeColor: Color {
-        sub.type == .income ? Color.green : Color.orange
+    // Theme Colors
+    var cardBackground: Color { Color(red: 28/255, green: 28/255, blue: 30/255) } // Dark Card Background
+    
+    var brandColor: Color {
+        let n = sub.name.lowercased()
+        if n.contains("netflix") { return .red }
+        if n.contains("spotify") { return .green }
+        if n.contains("adobe") { return .red }
+        if n.contains("amazon") { return Color(red: 0, green: 0.6, blue: 0.9) } // Light Blue
+        if n.contains("icloud") || n.contains("apple") { return .blue }
+        if n.contains("youtube") { return .red }
+        return sub.type == .income ? .green : .white
     }
     
     var body: some View {
         HStack(spacing: 16) {
-            // Circle with category icon
-            Circle()
-                .fill(typeColor.opacity(0.2))
-                .frame(width: 48, height: 48)
-                .overlay(
-                    Image(systemName: categoryIcon)
-                        .font(.title3)
-                        .foregroundStyle(typeColor)
-                )
+                // Attempt to fetch logo via Logo.dev
+                let logoURLString = "https://img.logo.dev/\(sub.brandDomain?.isEmpty == false ? sub.brandDomain! : "name/\(sub.name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")")?token=pk_EcUNocp3RJOn4qZwg9KGTA&size=200&retina=true"
+                
+                CachedLogoView(url: URL(string: logoURLString)) {
+                    // Fallback / Loading
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(brandColor.opacity(0.1))
+                            .frame(width: 48, height: 48)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(brandColor.opacity(0.2), lineWidth: 1)
+                            )
+                        
+                        Image(systemName: categoryIcon)
+                            .font(.system(size: 22))
+                            .foregroundStyle(brandColor)
+                    }
+                } content: { image in
+                    // Success
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(brandColor.opacity(0.1))
+                            .frame(width: 48, height: 48)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(brandColor.opacity(0.2), lineWidth: 1)
+                            )
+                        
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 48, height: 48) // Fill container
+                            .clipShape(RoundedRectangle(cornerRadius: 14)) // Clip to container shape
+                    }
+                }
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(sub.name)
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundStyle(Color.lizhiTextPrimary)
+                    .foregroundStyle(.white)
                 
-                // Category • Cycle • Next: date
-                Text("\(sub.categoryName) • \(sub.cycle) • Next: \(sub.effectiveNextDate.formatted(.dateTime.month(.abbreviated).day()))")
-                    .font(.caption)
-                    .foregroundStyle(Color.lizhiTextSecondary)
+                Text("Next bill: \(sub.effectiveNextDate.formatted(.dateTime.month(.abbreviated).day()))")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.gray)
             }
             
             Spacer()
             
-            // Price with +/- indicator
-            Text("\(sub.type == .income ? "+" : "-")\(CurrencyService.shared.symbol(for: sub.currency))\(String(format: "%.2f", Double(truncating: sub.amount as NSNumber)))")
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundStyle(typeColor)
+            VStack(alignment: .trailing, spacing: 4) {
+                // Amount
+                Text("\(sub.type == .income ? "+" : "")\(CurrencyService.shared.symbol(for: sub.currency))\(String(format: "%.2f", Double(truncating: sub.amount as NSNumber)))")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    // Expenses White, Income Green (as per image style)
+                    .foregroundStyle(sub.type == .income ? Color.green : Color.white)
+                
+                // Frequency Pill
+                Text(sub.cycle.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Capsule())
+            }
         }
-        .padding()
-        .background(Color.lizhiSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(typeColor.opacity(0.2), lineWidth: 1))
+        .padding(20)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
     }
 }

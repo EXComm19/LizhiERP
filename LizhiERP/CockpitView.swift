@@ -25,9 +25,15 @@ struct CockpitView: View {
     @State private var subcategoryBreakdown: [String: Double] = [:]
     
     // AI Insights (Persisted to save tokens)
-    @AppStorage("strategicInsight") private var strategicIdea: String = "Analyzing big picture..."
-    @AppStorage("tacticalInsight") private var tacticalIdea: String = "Finding quick wins..."
+    @AppStorage("spendingAdvice") private var spendingAdvice: String = "Analyzing spending patterns..."
+    @AppStorage("billInsights") private var billInsights: String = "Scanning bills..."
+    @AppStorage("investmentStrategies") private var investmentStrategies: String = "Evaluating portfolio..."
     @AppStorage("lastAnalyzedCount") private var lastAnalyzedCount: Int = 0
+    
+    // Custom Question State
+    @State private var customQuestion: String = ""
+    @State private var customAnswer: String = ""
+    @State private var isLoadingCustom: Bool = false
     
     @State private var isLoadingAI: Bool = false
     @State private var showSettings = false
@@ -320,7 +326,7 @@ struct CockpitView: View {
                                     .font(.caption)
                                     .foregroundStyle(Color.lizhiTextSecondary)
                                 Spacer()
-                                Text("\(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(Int(item.amount).formattedWithSeparator)")
+                                Text(formatCurrency(item.amount))
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(Color.lizhiTextPrimary)
@@ -348,7 +354,6 @@ struct CockpitView: View {
                     ProgressView().tint(Color.lizhiTextPrimary)
                 } else {
                     Button {
-                        // Manual specific trigger
                         Task { await fetchAI(force: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -360,27 +365,77 @@ struct CockpitView: View {
             .padding(.bottom, 12)
             
             VStack(spacing: 16) {
-                // Insight 1: Strategic (Visionary)
+                // Insight 1: Spending Advice
                 InsightRow(
                     icon: "sparkles",
                     color: .yellow,
-                    title: "Strategic Vision",
-                    content: strategicIdea,
+                    title: "Spending Advice",
+                    content: spendingAdvice,
                     isLoading: isLoadingAI
                 )
                 
                 Divider().background(Color.lizhiTextSecondary.opacity(0.2))
                 
-                // Insight 2: Tactical (Critical)
+                // Insight 2: Bill Insights
                 InsightRow(
-                    icon: "scope",
-                    color: .red,
-                    title: "Tactical Move",
-                    content: tacticalIdea,
+                    icon: "doc.text.magnifyingglass",
+                    color: .orange,
+                    title: "Bill Insights",
+                    content: billInsights,
                     isLoading: isLoadingAI
                 )
                 
                 Divider().background(Color.lizhiTextSecondary.opacity(0.2))
+                
+                // Insight 3: Investment Strategies
+                InsightRow(
+                    icon: "chart.line.uptrend.xyaxis",
+                    color: .green,
+                    title: "Investment Strategies",
+                    content: investmentStrategies,
+                    isLoading: isLoadingAI
+                )
+                
+                Divider().background(Color.lizhiTextSecondary.opacity(0.2))
+                
+                // Custom Question Input
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        TextField("Ask the Oracle...", text: $customQuestion)
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(Color.lizhiTextPrimary)
+                            .padding(12)
+                            .background(Color.lizhiBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        
+                        Button {
+                            Task { await askCustomQuestion() }
+                        } label: {
+                            if isLoadingCustom {
+                                ProgressView().tint(.white)
+                                    .frame(width: 44, height: 44)
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                                    .foregroundStyle(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                            }
+                        }
+                        .disabled(customQuestion.isEmpty || isLoadingCustom)
+                    }
+                    
+                    // Custom Answer Display
+                    if !customAnswer.isEmpty {
+                        Text(customAnswer)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.lizhiTextSecondary)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
                 
                 HStack {
                     Spacer()
@@ -477,7 +532,7 @@ struct CockpitView: View {
             // 2. If valid data exists (not placeholder) AND counts match, SKIP.
             // 3. If counts differ (new data), FETCH.
             
-            let isPlaceholder = strategicIdea == "Analyzing big picture..." || strategicIdea.contains("transac")
+            let isPlaceholder = spendingAdvice == "Analyzing spending patterns..." || spendingAdvice.contains("transac")
             let hasNewData = allTransactions.count != lastAnalyzedCount
             
             if !allTransactions.isEmpty {
@@ -492,7 +547,7 @@ struct CockpitView: View {
         guard !isLoadingAI, !allTransactions.isEmpty else { return }
         
         // Double check redundant call if not forced
-        if !force && allTransactions.count == lastAnalyzedCount && !(strategicIdea == "Analyzing big picture...") {
+        if !force && allTransactions.count == lastAnalyzedCount && !(spendingAdvice == "Analyzing spending patterns...") {
             return
         }
         
@@ -502,7 +557,7 @@ struct CockpitView: View {
             let forecast = try await AIService.shared.generateForecast(transactions: Array(allTransactions.prefix(100)), assets: assets)
             
             withAnimation {
-                self.strategicInsight(forecast)
+                self.applyForecast(forecast)
                 // Save the count we analyzed
                 self.lastAnalyzedCount = allTransactions.count
                 isLoadingAI = false
@@ -510,16 +565,48 @@ struct CockpitView: View {
         } catch {
              print("AI Error: \(error)")
              withAnimation {
-                 self.strategicIdea = "Oracle disconnected."
-                 self.tacticalIdea = "Try again later."
+                 self.spendingAdvice = "Oracle disconnected."
+                 self.billInsights = "Try again later."
+                 self.investmentStrategies = "Check your connection."
                  isLoadingAI = false
              }
         }
     }
     
-    func strategicInsight(_ forecast: FinancialForecast) {
-        self.strategicIdea = forecast.primaryInsight
-        self.tacticalIdea = forecast.secondaryInsight
+    func applyForecast(_ forecast: FinancialForecast) {
+        self.spendingAdvice = forecast.primarySpendingAdvice
+        self.billInsights = forecast.primaryBillInsight
+        self.investmentStrategies = forecast.primaryInvestmentStrategy
+    }
+    
+    func askCustomQuestion() async {
+        guard !customQuestion.isEmpty, !isLoadingCustom else { return }
+        
+        isLoadingCustom = true
+        do {
+            // Fetch subscriptions for context
+            let descriptor = FetchDescriptor<Subscription>()
+            let subscriptions = (try? modelContext.fetch(descriptor)) ?? []
+            
+            let answer = try await AIService.shared.askQuestion(
+                question: customQuestion,
+                transactions: Array(allTransactions.prefix(100)),
+                assets: assets,
+                subscriptions: subscriptions
+            )
+            
+            withAnimation {
+                self.customAnswer = answer
+                self.customQuestion = "" // Clear input
+                isLoadingCustom = false
+            }
+        } catch {
+            print("Custom Question Error: \(error)")
+            withAnimation {
+                self.customAnswer = "Couldn't process that. Try rephrasing?"
+                isLoadingCustom = false
+            }
+        }
     }
     
     // Date Helpers
@@ -538,6 +625,14 @@ struct CockpitView: View {
         } else {
             return selectedDate.formatted(.dateTime.month(.abbreviated).year())
         }
+    }
+    
+    private func formatCurrency(_ amount: Decimal) -> String {
+        return "\(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(NSDecimalNumber(decimal: amount).doubleValue.formatted(.number.precision(.fractionLength(2))))"
+    }
+
+    private func formatCurrency(_ amount: Double) -> String {
+        return "\(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(amount.formatted(.number.precision(.fractionLength(2))))"
     }
 }
 
@@ -582,7 +677,7 @@ struct MetricCard: View {
             
             Spacer()
             
-            Text("$\(Int(value).formattedWithSeparator)")
+            Text("\(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(value.formatted(.number.precision(.fractionLength(2))))")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(textColor)
                 .lineLimit(1)
@@ -596,6 +691,7 @@ struct MetricCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 28))
         .overlay(RoundedRectangle(cornerRadius: 28).stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05), lineWidth: 1))
     }
+
 }
 
 struct LegendItem: View {

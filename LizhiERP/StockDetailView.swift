@@ -39,10 +39,23 @@ struct StockDetailView: View {
                     
                     Spacer()
                     
-                    Text(asset.ticker.uppercased())
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.lizhiTextPrimary)
+                    VStack(spacing: 2) {
+                        Text(asset.ticker.uppercased())
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.lizhiTextPrimary)
+                        
+                        Text(asset.id.uuidString)
+                            .font(.system(size: 8, design: .monospaced))
+                            .foregroundStyle(Color.lizhiTextSecondary.opacity(0.4))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 120)
+                            .onTapGesture {
+                                UIPasteboard.general.string = asset.id.uuidString
+                                triggerHaptic(.glassTap)
+                            }
+                    }
                     
                     Spacer()
                     

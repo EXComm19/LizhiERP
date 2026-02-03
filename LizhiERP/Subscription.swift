@@ -23,6 +23,9 @@ final class Subscription {
     var icon: String = "tv"
     var weekdaysOnly: Bool = false
     
+    // NEW: Optional domain for Logo.dev fetch
+    var brandDomain: String?
+    
     // NEW: Separating the "Anchor" start date from the "Runner" next date
     var initialBillDate: Date = Date()
     
@@ -55,7 +58,8 @@ final class Subscription {
         subcategory: String = "Subscription",
         linkedAccountID: String? = nil,
         icon: String = "tv",
-        weekdaysOnly: Bool = false
+        weekdaysOnly: Bool = false,
+        brandDomain: String? = nil
     ) {
         self.id = UUID()
         self.name = name
@@ -74,6 +78,7 @@ final class Subscription {
         self.linkedAccountID = linkedAccountID
         self.icon = icon
         self.weekdaysOnly = weekdaysOnly
+        self.brandDomain = brandDomain
     }
     
     // Logic to calculate monthly equivalent cost

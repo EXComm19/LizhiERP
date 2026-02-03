@@ -227,7 +227,7 @@ struct SpendingHabitsChart: View {
                         Text("TOTAL")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.gray)
-                        Text("$\(Int(displayTotal))")
+                        Text("$\(displayTotal.formatted(.number.precision(.fractionLength(2))))")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.white)
                     }
@@ -248,7 +248,7 @@ struct SpendingHabitsChart: View {
                                     .foregroundStyle(.white)
                                 Spacer()
                                 VStack(alignment: .trailing) {
-                                    Text("$\(Int(segment.value))")
+                                    Text("$\(segment.value.formatted(.number.precision(.fractionLength(2))))")
                                         .font(.caption.bold())
                                         .foregroundStyle(.white)
                                     Text("\(Int((segment.value / displayTotal) * 100))%")

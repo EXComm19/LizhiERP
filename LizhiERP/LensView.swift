@@ -30,7 +30,7 @@ struct LensView: View {
                     .fontWeight(.bold)
                     .foregroundStyle(Color.lizhiTextPrimary)
                 
-                Text("Total: \(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(Int(NSDecimalNumber(decimal: totalValue).doubleValue).formattedWithSeparator)")
+                Text("Total: \(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(NSDecimalNumber(decimal: totalValue).doubleValue.formatted(.number.precision(.fractionLength(2))))")
                     .font(.subheadline)
                     .foregroundStyle(Color.lizhiTextSecondary)
             }
@@ -158,7 +158,7 @@ struct PhysicalAssetRow: View {
             Spacer()
             
             VStack(alignment: .trailing) {
-                Text("\(CurrencyService.shared.symbol(for: asset.currency.isEmpty ? "AUD" : asset.currency))\(Int(NSDecimalNumber(decimal: asset.purchaseValue).doubleValue))")
+                Text("\(CurrencyService.shared.symbol(for: asset.currency.isEmpty ? "AUD" : asset.currency))\(NSDecimalNumber(decimal: asset.purchaseValue).doubleValue.formatted(.number.precision(.fractionLength(2))))")
                     .font(.headline)
                     .foregroundStyle(Color.lizhiTextPrimary)
                 Text("-\(CurrencyService.shared.symbol(for: CurrencyService.shared.baseCurrency))\(Double(truncating: asset.costPerDay as NSNumber), specifier: "%.2f")/d")

@@ -224,7 +224,7 @@ struct LedgerView: View {
                                 // Summation here does not respect currency conversion.
                                 // It just sums values. For a ledger list, this might be okay or misleading.
                                 // Let's keep as is but fix style.
-                                Text("$\(totalForDay(txs).formattedWithSeparator)")
+                                Text("$\(totalForDay(txs).formatted(.number.precision(.fractionLength(2))))")
                                     .font(.caption)
                                     .foregroundStyle(Color.lizhiTextSecondary)
                             }
@@ -398,9 +398,9 @@ struct LedgerView: View {
         }
     }
     
-    func totalForDay(_ txs: [Transaction]) -> Int {
-        let total = txs.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
-        return NSDecimalNumber(decimal: total).intValue
+    func totalForDay(_ txs: [Transaction]) -> Decimal {
+        let total = txs.filter { $0.type == .expense }.reduce(0) { $0 + CurrencyService.shared.convertToBase($1.amount, from: $1.currency) }
+        return total
     }
 }
 

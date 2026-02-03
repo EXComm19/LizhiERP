@@ -13,6 +13,7 @@ struct SubscriptionEditorView: View {
     @State private var selectedCycle: String = "Monthly"
     @State private var firstBillDate: Date = Date()
     @State private var currency: String = CurrencyService.shared.baseCurrency
+    @State private var brandDomain: String = "" // NEW: Brand Domain for Logo.dev
     
     // NEW: Type and Category selection (matching Transaction system)
     @State private var selectedType: TransactionType = .expense
@@ -89,6 +90,27 @@ struct SubscriptionEditorView: View {
                     }
                     .padding(.horizontal)
                     
+                    // Brand Domain (Optional)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("BRAND DOMAIN (OPTIONAL)")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.lizhiTextSecondary)
+                        
+                        TextField("e.g. spotify.com", text: $brandDomain)
+                            .padding()
+                            .frame(height: 50)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.lizhiTextSecondary.opacity(0.3), lineWidth: 1)
+                                    .background(Color.lizhiSurface.cornerRadius(12))
+                            )
+                            .foregroundStyle(Color.lizhiTextPrimary)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                    }
+                    .padding(.horizontal)
+                    
                     // Category Selection
                     categorySection
                     
@@ -106,14 +128,23 @@ struct SubscriptionEditorView: View {
                                 .foregroundStyle(Color.lizhiTextSecondary)
                             
                             HStack {
-                                // Currency Picker
-                                Picker("", selection: $currency) {
+                                // Currency Menu
+                                Menu {
                                     ForEach(CurrencyService.shared.availableCurrencies, id: \.self) { code in
-                                        Text(CurrencyService.shared.symbol(for: code)).tag(code)
+                                        Button(CurrencyService.shared.symbol(for: code)) {
+                                            currency = code
+                                        }
                                     }
+                                } label: {
+                                    HStack(spacing: 2) {
+                                        Text(CurrencyService.shared.symbol(for: currency))
+                                            .font(.body) // Adjust size as needed
+                                            .fontWeight(.medium)
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.caption2)
+                                    }
+                                    .foregroundStyle(Color.lizhiTextSecondary)
                                 }
-                                .tint(Color.lizhiTextSecondary)
-                                .labelsHidden()
                                 
                                 TextField("0.00", value: $amount, format: .number.precision(.fractionLength(2)))
                                     .keyboardType(.decimalPad)
@@ -248,6 +279,7 @@ struct SubscriptionEditorView: View {
                 let cats = sub.type == .income ? incomeCategories : expenseCategories
                 selectedCategory = cats.first(where: { $0.name == sub.categoryName })
                 weekdaysOnly = sub.weekdaysOnly
+                brandDomain = sub.brandDomain ?? ""
             } else {
                 isNameFocused = true
                 // Default to first category
@@ -460,6 +492,7 @@ struct SubscriptionEditorView: View {
             sub.subcategory = subcategory
             sub.linkedAccountID = selectedAccountID
             sub.weekdaysOnly = weekdaysOnly
+            sub.brandDomain = brandDomain.isEmpty ? nil : brandDomain
             print("DEBUG: Updating existing subscription: \(sub.name)")
         } else {
             // Create new
@@ -474,7 +507,8 @@ struct SubscriptionEditorView: View {
                 categoryName: categoryName,
                 subcategory: subcategory,
                 linkedAccountID: selectedAccountID,
-                weekdaysOnly: weekdaysOnly
+                weekdaysOnly: weekdaysOnly,
+                brandDomain: brandDomain.isEmpty ? nil : brandDomain
             )
             modelContext.insert(sub)
             print("DEBUG: Inserting new subscription: \(sub.name)")
